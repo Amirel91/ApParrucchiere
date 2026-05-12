@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String        @id @default(cuid())
+  name        String
+  email       String        @unique
+  phone       String?
+  role        String        @default("CLIENT") // ADMIN or CLIENT
+  password    String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  appointments Appointment[]
+}
+
+model Service {
+  id              String        @id @default(cuid())
+  name            String
+  description     String?
+  durationMinutes Int
+  price           Float
+  bufferMinutes   Int           @default(10)
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  appointments    Appointment[]
+}
+
+model BusinessHours {
+  id        String   @id @default(cuid())
+  dayOfWeek Int
+  openTime  String
+  closeTime String
+  closed    Boolean  @default(false)
+}
+
+model Appointment {
+  id            String   @id @default(cuid())
+  clientId      String
+  client        User     @relation(fields: [clientId], references: [id])
+  serviceId     String
+  service       Service  @relation(fields: [serviceId], references: [id])
+  startTime     DateTime
+  endTime       DateTime
+  status        String   @default("CONFIRMED")
+  clientName    String
+  clientPhone   String?
+  clientEmail   String?
+  reminderSent  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
