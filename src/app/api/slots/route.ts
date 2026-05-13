@@ -21,16 +21,15 @@ export async function GET(request: NextRequest) {
 
     // Create midnight in the CLIENT's timezone as UTC timestamp
     // Example: midnight Italy (UTC+2) = previous day 22:00 UTC
-    const midnightClientUTC = Date.UTC(year, month - 1, day, 0, 0, 0) - tzOffset * 60 * 1000
+    const midnightClientUTC = Date.UTC(year, month - 1, day, 0, 0, 0) + tzOffset * 60 * 1000
     const endOfDayClientUTC = midnightClientUTC + 24 * 60 * 60 * 1000
 
     const startOfDay = new Date(midnightClientUTC)
     const endOfDay = new Date(endOfDayClientUTC)
 
-    // Get the day of week from the CLIENT's perspective
-    // Use UTC midnight adjusted by offset to get correct day
-    const dayOfWeekUTC = new Date(midnightClientUTC)
-    const dayOfWeek = dayOfWeekUTC.getUTCDay() // 0=Sun, 1=Mon, ... 6=Sat
+    // Get the day of week directly from the calendar date (not UTC timestamp)
+    // to avoid off-by-one near timezone midnight boundaries
+    const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay() // 0=Sun, 1=Mon, ... 6=Sat
 
     // Get business hours for this day
     const businessHours = await db.businessHours.findUnique({
@@ -78,7 +77,7 @@ export async function GET(request: NextRequest) {
     const nowClientMidnight = Date.UTC(
       now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
       0, 0, 0
-    ) - tzOffset * 60 * 1000
+    ) + tzOffset * 60 * 1000
     const isToday = midnightClientUTC === nowClientMidnight
     const currentMinutesInClientTz = Math.floor(
       (now.getTime() - nowClientMidnight) / (60 * 1000)
