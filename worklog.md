@@ -98,3 +98,25 @@ Complete barber/hairdresser booking application built with Next.js 16, Prisma (S
 - ESLint: 0 errors, 0 warnings
 - Dev server: Compiling successfully, pages rendering
 - Database: Schema pushed and seeded
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix slot availability bug - slots not becoming unavailable when already booked
+
+Work Log:
+- Read /api/slots/route.ts, BookingFlow.tsx, /api/appointments/route.ts
+- Diagnosed root cause: timezone offset sign was inverted in slot calculation
+- Line 24: `Date.UTC(...) - tzOffset` should be `Date.UTC(...) + tzOffset`
+- Line 81: Same issue with nowClientMidnight calculation
+- Line 32: dayOfWeek was using wrong UTC timestamp (could show wrong day)
+- Fixed all three issues
+- Updated .env with new Neon connection string (removed channel_binding=require)
+- Updated Vercel env vars (DATABASE_URL and DIRECT_URL)
+- Deployed to production via Vercel CLI
+
+Stage Summary:
+- Fixed timezone offset bug causing 4-hour shift in slot conflict detection
+- Fixed dayOfWeek calculation to avoid off-by-one errors
+- Deployed to https://ap-parrucchiere.vercel.app
+- GitHub push failed due to expired token (user needs to update token)
+
