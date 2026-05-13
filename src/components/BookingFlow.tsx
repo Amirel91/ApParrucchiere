@@ -38,9 +38,12 @@ export function BookingFlow() {
     setLoadingSlots(true)
     try {
       const dateStr = toDateInputString(date)
+      // Pass client timezone offset so server generates slots in correct timezone
+      const tzOffset = new Date().getTimezoneOffset()
       const res = await fetch(
-        `/api/slots?date=${dateStr}&serviceId=${selectedService.id}`
+        `/api/slots?date=${dateStr}&serviceId=${selectedService.id}&tzOffset=${tzOffset}`
       )
+      if (!res.ok) throw new Error('Fetch failed')
       const data = await res.json()
       setSlots(data.slots || [])
     } catch {

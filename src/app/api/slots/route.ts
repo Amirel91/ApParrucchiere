@@ -6,6 +6,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const dateStr = searchParams.get('date')
     const serviceId = searchParams.get('serviceId')
+    // Client timezone offset in minutes (e.g., -120 for UTC+2 Italy summer)
+    const tzOffset = parseInt(searchParams.get('tzOffset') || '-120')
 
     if (!dateStr || !serviceId) {
       return NextResponse.json(
@@ -14,8 +16,21 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const date = new Date(dateStr + 'T00:00:00')
-    const dayOfWeek = date.getDay()
+    // Parse date components to avoid timezone issues
+    const [year, month, day] = dateStr.split('-').map(Number)
+
+    // Create midnight in the CLIENT's timezone as UTC timestamp
+    // Example: midnight Italy (UTC+2) = previous day 22:00 UTC
+    const midnightClientUTC = Date.UTC(year, month - 1, day, 0, 0, 0) - tzOffset * 60 * 1000
+    const endOfDayClientUTC = midnightClientUTC + 24 * 60 * 60 * 1000
+
+    const startOfDay = new Date(midnightClientUTC)
+    const endOfDay = new Date(endOfDayClientUTC)
+
+    // Get the day of week from the CLIENT's perspective
+    // Use UTC midnight adjusted by offset to get correct day
+    const dayOfWeekUTC = new Date(midnightClientUTC)
+    const dayOfWeek = dayOfWeekUTC.getUTCDay() // 0=Sun, 1=Mon, ... 6=Sat
 
     // Get business hours for this day
     const businessHours = await db.businessHours.findUnique({
@@ -46,12 +61,7 @@ export async function GET(request: NextRequest) {
 
     const totalDuration = service.durationMinutes + service.bufferMinutes
 
-    // Get existing appointments for this day
-    const startOfDay = new Date(date)
-    startOfDay.setHours(0, 0, 0, 0)
-    const endOfDay = new Date(date)
-    endOfDay.setHours(23, 59, 59, 999)
-
+    // Get existing appointments for this day (in CLIENT's timezone range)
     const existingAppointments = await db.appointment.findMany({
       where: {
         startTime: { gte: startOfDay, lt: endOfDay },
@@ -63,36 +73,37 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Get current time for today's comparison
+    // Get current time for today's comparison (in client timezone)
     const now = new Date()
-    const isToday =
-      date.getDate() === now.getDate() &&
-      date.getMonth() === now.getMonth() &&
-      date.getFullYear() === now.getFullYear()
-    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const nowClientMidnight = Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
+      0, 0, 0
+    ) - tzOffset * 60 * 1000
+    const isToday = midnightClientUTC === nowClientMidnight
+    const currentMinutesInClientTz = Math.floor(
+      (now.getTime() - nowClientMidnight) / (60 * 1000)
+    )
 
     const slots: string[] = []
     const SLOT_INCREMENT = 15
 
     for (let time = openMinutes; time + totalDuration <= closeMinutes; time += SLOT_INCREMENT) {
-      // For today, skip past slots (add some buffer for booking)
-      if (isToday && time <= currentMinutes + 30) {
+      // For today, skip past slots (add 30 min buffer for booking)
+      if (isToday && time <= currentMinutesInClientTz + 30) {
         continue
       }
 
-      const slotStart = new Date(date)
-      slotStart.setHours(Math.floor(time / 60), time % 60, 0, 0)
+      // Slot start in UTC (using client's timezone)
+      const slotStartUTC = midnightClientUTC + time * 60 * 1000
+      // Slot end including buffer, in UTC
+      const bufferEndUTC = slotStartUTC + totalDuration * 60 * 1000
 
-      const slotEnd = new Date(slotStart.getTime() + service.durationMinutes * 60 * 1000)
-
-      // Check overlap with existing appointments
+      // Check overlap with existing appointments (all in UTC)
       const hasConflict = existingAppointments.some((apt) => {
-        const aptStart = new Date(apt.startTime)
-        const aptEnd = new Date(apt.endTime)
-
-        // The new slot's available window (including buffer) must not overlap
-        const bufferEnd = new Date(slotStart.getTime() + totalDuration * 60 * 1000)
-        return slotStart < aptEnd && bufferEnd > aptStart
+        const aptStartUTC = new Date(apt.startTime).getTime()
+        const aptEndUTC = new Date(apt.endTime).getTime()
+        // Overlap: slot starts before appointment ends AND slot ends after appointment starts
+        return slotStartUTC < aptEndUTC && bufferEndUTC > aptStartUTC
       })
 
       if (!hasConflict) {
@@ -103,7 +114,8 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ slots })
-  } catch {
+  } catch (err) {
+    console.error('[API /slots GET] Error:', err)
     return NextResponse.json(
       { error: 'Errore nel calcolo degli slot' },
       { status: 500 }

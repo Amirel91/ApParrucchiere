@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
       orderBy: { startTime: 'desc' },
     })
     return NextResponse.json(appointments)
-  } catch {
+  } catch (err) {
+    console.error('[API /appointments GET] Error:', err)
     return NextResponse.json(
       { error: 'Errore nel recupero degli appuntamenti' },
       { status: 500 }
@@ -56,6 +57,34 @@ export async function POST(request: NextRequest) {
     const start = new Date(startTime)
     const end = new Date(start.getTime() + service.durationMinutes * 60 * 1000)
 
+    // Double-check: verify no conflict with existing appointments
+    const startOfDay = new Date(start)
+    startOfDay.setUTCHours(0, 0, 0, 0)
+    const endOfDay = new Date(start)
+    endOfDay.setUTCHours(23, 59, 59, 999)
+
+    const existingAppointments = await db.appointment.findMany({
+      where: {
+        startTime: { gte: startOfDay, lt: endOfDay },
+        status: { in: ['CONFIRMED', 'PENDING'] },
+      },
+      select: { startTime: true, endTime: true },
+    })
+
+    // Check conflict: new slot [start, end] overlaps with any existing [aptStart, aptEnd]
+    const hasConflict = existingAppointments.some((apt) => {
+      const aptStart = new Date(apt.startTime).getTime()
+      const aptEnd = new Date(apt.endTime).getTime()
+      return start.getTime() < aptEnd && end.getTime() > aptStart
+    })
+
+    if (hasConflict) {
+      return NextResponse.json(
+        { error: 'Questo slot non è più disponibile. Ricarica la pagina e seleziona un altro orario.' },
+        { status: 409 }
+      )
+    }
+
     const appointment = await db.appointment.create({
       data: {
         clientId,
@@ -71,7 +100,8 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(appointment, { status: 201 })
-  } catch {
+  } catch (err) {
+    console.error('[API /appointments POST] Error:', err)
     return NextResponse.json(
       { error: 'Errore nella creazione dell\'appuntamento' },
       { status: 500 }
