@@ -51,5 +51,8 @@ prompt
 
 server.log
 # Skills directory
-/skills/.env
+/skills
+upload/
+examples/
+db/
 .env*.local
