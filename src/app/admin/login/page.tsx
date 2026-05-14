@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
 import { Lock, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 
@@ -31,22 +30,17 @@ export default function AdminLoginPage() {
         throw new Error(data.error || 'Credenziali non valide')
       }
 
-      router.push('/admin/dashboard')
+      // Use window.location for a full page navigation (ensures cookie is sent)
+      window.location.href = '/admin/dashboard'
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore di login')
-    } finally {
       setLoading(false)
     }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-stone-50 px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-sm"
-      >
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-stone-900 flex items-center justify-center">
             <Lock className="w-7 h-7 text-white" />
@@ -70,6 +64,7 @@ export default function AdminLoginPage() {
               onChange={e => setUsername(e.target.value)}
               placeholder="admin"
               required
+              autoComplete="username"
               className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors"
             />
           </div>
@@ -83,6 +78,7 @@ export default function AdminLoginPage() {
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
+                autoComplete="current-password"
                 className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors pr-12"
               />
               <button
@@ -116,7 +112,7 @@ export default function AdminLoginPage() {
             ← Torna al sito
           </Link>
         </div>
-      </motion.div>
+      </div>
     </div>
   )
 }
