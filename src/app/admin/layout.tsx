@@ -37,31 +37,45 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  const isLoginPage = pathname === '/admin/login'
+
   useEffect(() => {
+    // On login page, skip auth check entirely
+    if (isLoginPage) {
+      setLoading(false)
+      return
+    }
+
     fetch('/api/auth/me')
       .then(res => {
         if (!res.ok) {
-          router.push('/admin/login')
+          // Not authenticated → redirect to login
+          router.replace('/admin/login')
           return null
         }
         return res.json()
       })
       .then(data => {
-        if (data) setUsername(data.username)
+        if (data && data.username) {
+          setUsername(data.username)
+        }
+        // Always stop loading, even if not authenticated
         setLoading(false)
       })
       .catch(() => {
-        router.push('/admin/login')
+        router.replace('/admin/login')
         setLoading(false)
       })
-  }, [router])
+  }, [router, isLoginPage])
 
   const handleLogout = async () => {
     await fetch('/api/auth/me', { method: 'POST' })
+    setUsername(null)
     router.push('/admin/login')
   }
 
-  if (loading) {
+  // Show loading spinner only on non-login pages while checking auth
+  if (loading && !isLoginPage) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50">
         <div className="animate-spin w-8 h-8 border-2 border-stone-300 border-t-stone-900 rounded-full" />
@@ -69,6 +83,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     )
   }
 
+  // On login page, render children directly without sidebar
+  if (isLoginPage) {
+    return <>{children}</>
+  }
+
+  // Not authenticated and not on login page → show nothing (redirect will happen)
   if (!username) return null
 
   return (
