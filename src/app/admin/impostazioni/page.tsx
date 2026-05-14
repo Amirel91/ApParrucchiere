@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { Save, Store, Clock, Key, Check } from 'lucide-react'
+import { Save, Store, Clock, Key, Check, AlertCircle } from 'lucide-react'
 
 interface BusinessConfig {
   id: string
@@ -31,51 +30,110 @@ const defaultHours: WorkingHour[] = Array.from({ length: 7 }, (_, i) => ({
   closed: i === 6,
 }))
 
+const defaultConfig: BusinessConfig = {
+  id: '',
+  shopName: '',
+  shopDescription: '',
+  shopPhone: '',
+  shopEmail: '',
+  shopAddress: '',
+}
+
 export default function AdminImpostazioni() {
-  const [config, setConfig] = useState<BusinessConfig | null>(null)
+  const [config, setConfig] = useState<BusinessConfig>(defaultConfig)
   const [hours, setHours] = useState<WorkingHour[]>(defaultHours)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' })
   const [passwordError, setPasswordError] = useState('')
   const [passwordSuccess, setPasswordSuccess] = useState('')
 
+  // Fetch config and working hours independently
   useEffect(() => {
-    Promise.all([
-      fetch('/api/config').then(r => r.json()),
-      fetch('/api/working-hours').then(r => r.json()),
-    ]).then(([cfg, wh]) => {
-      setConfig(cfg)
-      if (Array.isArray(wh) && wh.length > 0) {
-        setHours(wh)
-      }
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    let configLoaded = false
+    let hoursLoaded = false
+
+    const checkDone = () => {
+      if (configLoaded && hoursLoaded) setLoading(false)
+    }
+
+    // Fetch config
+    fetch('/api/config')
+      .then(r => {
+        if (!r.ok) throw new Error('Errore API config')
+        return r.json()
+      })
+      .then(data => {
+        if (data && typeof data === 'object') {
+          setConfig({
+            id: data.id || '',
+            shopName: data.shopName || '',
+            shopDescription: data.shopDescription || '',
+            shopPhone: data.shopPhone || '',
+            shopEmail: data.shopEmail || '',
+            shopAddress: data.shopAddress || '',
+          })
+        }
+      })
+      .catch(err => console.error('Config fetch error:', err))
+      .finally(() => { configLoaded = true; checkDone() })
+
+    // Fetch working hours
+    fetch('/api/working-hours')
+      .then(r => {
+        if (!r.ok) throw new Error('Errore API working-hours')
+        return r.json()
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setHours(data)
+        }
+      })
+      .catch(err => console.error('Working hours fetch error:', err))
+      .finally(() => { hoursLoaded = true; checkDone() })
   }, [])
 
   const saveConfig = async () => {
-    if (!config) return
     setSaving(true)
     setSaved(false)
+    setSaveError('')
 
     try {
-      await fetch('/api/config', {
+      // Save config
+      const configRes = await fetch('/api/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
       })
+      if (!configRes.ok) {
+        const errData = await configRes.json()
+        throw new Error(errData.error || 'Errore nel salvataggio della configurazione')
+      }
 
-      await fetch('/api/working-hours', {
+      // Save working hours
+      const hoursRes = await fetch('/api/working-hours', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(hours),
       })
+      if (!hoursRes.ok) {
+        const errData = await hoursRes.json()
+        throw new Error(errData.error || "Errore nel salvataggio degli orari")
+      }
 
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
-    } catch { /* silent */ }
-    finally { setSaving(false) }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Errore nel salvataggio')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const updateConfigField = (field: keyof BusinessConfig, value: string) => {
+    setConfig(prev => ({ ...prev, [field]: value }))
   }
 
   const handleChangePassword = async () => {
@@ -146,11 +204,27 @@ export default function AdminImpostazioni() {
           ) : (
             <>
               <Save className="w-4 h-4" />
-              {saving ? 'Salvataggio...' : 'Salva'}
+              {saving ? 'Salvataggio...' : 'Salva tutto'}
             </>
           )}
         </button>
       </div>
+
+      {/* Save error banner */}
+      {saveError && (
+        <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 flex items-center gap-3 text-red-600 text-sm">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <span>{saveError}</span>
+        </div>
+      )}
+
+      {/* Saved success banner */}
+      {saved && (
+        <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-3 text-emerald-600 text-sm">
+          <Check className="w-5 h-5 shrink-0" />
+          <span>Tutte le modifiche sono state salvate con successo. I dati verranno aggiornati in tempo reale sul sito del cliente.</span>
+        </div>
+      )}
 
       {/* Shop Info */}
       <div className="bg-white rounded-xl border border-stone-200 p-6 mb-6">
@@ -161,25 +235,27 @@ export default function AdminImpostazioni() {
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Nome del Negozio</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Nome del Negozio *</label>
             <input
               type="text"
-              value={config?.shopName || ''}
-              onChange={e => setConfig(prev => prev ? { ...prev, shopName: e.target.value } : prev)}
-              className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 outline-none focus:border-stone-900 transition-colors"
+              value={config.shopName}
+              onChange={e => updateConfigField('shopName', e.target.value)}
+              placeholder="Es: Studio Bellezza Anna"
+              className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors"
             />
+            <p className="text-xs text-stone-400 mt-1">Appare come titolo principale sulla homepage</p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Descrizione</label>
             <textarea
-              value={config?.shopDescription || ''}
-              onChange={e => setConfig(prev => prev ? { ...prev, shopDescription: e.target.value } : prev)}
+              value={config.shopDescription}
+              onChange={e => updateConfigField('shopDescription', e.target.value)}
               rows={3}
-              placeholder="Descrivi la tua attività..."
+              placeholder="Descrivi la tua attivita, i servizi offerti, lo stile del tuo salone..."
               className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors resize-none"
             />
-            <p className="text-xs text-stone-400 mt-1">Questa descrizione appare nella homepage del cliente</p>
+            <p className="text-xs text-stone-400 mt-1">Questa descrizione appare sulla homepage del cliente</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -187,8 +263,8 @@ export default function AdminImpostazioni() {
               <label className="block text-sm font-medium text-stone-700 mb-1.5">Telefono</label>
               <input
                 type="tel"
-                value={config?.shopPhone || ''}
-                onChange={e => setConfig(prev => prev ? { ...prev, shopPhone: e.target.value } : prev)}
+                value={config.shopPhone || ''}
+                onChange={e => updateConfigField('shopPhone', e.target.value)}
                 placeholder="+39 02 1234567"
                 className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors"
               />
@@ -197,8 +273,8 @@ export default function AdminImpostazioni() {
               <label className="block text-sm font-medium text-stone-700 mb-1.5">Email</label>
               <input
                 type="email"
-                value={config?.shopEmail || ''}
-                onChange={e => setConfig(prev => prev ? { ...prev, shopEmail: e.target.value } : prev)}
+                value={config.shopEmail || ''}
+                onChange={e => updateConfigField('shopEmail', e.target.value)}
                 placeholder="info@negozio.it"
                 className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors"
               />
@@ -209,8 +285,8 @@ export default function AdminImpostazioni() {
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Indirizzo</label>
             <input
               type="text"
-              value={config?.shopAddress || ''}
-              onChange={e => setConfig(prev => prev ? { ...prev, shopAddress: e.target.value } : prev)}
+              value={config.shopAddress || ''}
+              onChange={e => updateConfigField('shopAddress', e.target.value)}
               placeholder="Via Roma 42, Milano"
               className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors"
             />

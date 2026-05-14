@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { CalendarDays, Sparkles } from 'lucide-react'
+import { CalendarDays, Sparkles, Phone, Mail, MapPin } from 'lucide-react'
 
 interface BusinessConfig {
   id: string
@@ -18,10 +18,22 @@ export default function HomePage() {
   const [config, setConfig] = useState<BusinessConfig | null>(null)
 
   useEffect(() => {
-    fetch('/api/config')
-      .then(res => res.json())
-      .then(data => setConfig(data))
-      .catch(console.error)
+    // Fetch config on mount and poll every 30 seconds for real-time updates
+    const fetchConfig = () => {
+      fetch('/api/config')
+        .then(res => res.json())
+        .then(data => {
+          if (data && typeof data === 'object') {
+            setConfig(data)
+          }
+        })
+        .catch(console.error)
+    }
+
+    fetchConfig()
+    const interval = setInterval(fetchConfig, 30000)
+
+    return () => clearInterval(interval)
   }, [])
 
   return (
@@ -51,9 +63,44 @@ export default function HomePage() {
 
           {/* Shop Description */}
           {config?.shopDescription && (
-            <p className="text-stone-500 text-base leading-relaxed mb-10">
+            <p className="text-stone-500 text-base leading-relaxed mb-8">
               {config.shopDescription}
             </p>
+          )}
+
+          {/* Contact Info */}
+          {(config?.shopPhone || config?.shopEmail || config?.shopAddress) && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="mb-8 space-y-2"
+            >
+              {config?.shopPhone && (
+                <a
+                  href={`tel:${config.shopPhone}`}
+                  className="flex items-center justify-center gap-2 text-sm text-stone-500 hover:text-stone-700 transition-colors"
+                >
+                  <Phone className="w-4 h-4" />
+                  {config.shopPhone}
+                </a>
+              )}
+              {config?.shopEmail && (
+                <a
+                  href={`mailto:${config.shopEmail}`}
+                  className="flex items-center justify-center gap-2 text-sm text-stone-500 hover:text-stone-700 transition-colors"
+                >
+                  <Mail className="w-4 h-4" />
+                  {config.shopEmail}
+                </a>
+              )}
+              {config?.shopAddress && (
+                <div className="flex items-center justify-center gap-2 text-sm text-stone-500">
+                  <MapPin className="w-4 h-4 shrink-0" />
+                  {config.shopAddress}
+                </div>
+              )}
+            </motion.div>
           )}
 
           {/* CTA Button */}

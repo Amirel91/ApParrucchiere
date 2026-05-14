@@ -736,10 +736,10 @@ export default function PrenotaPage() {
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
           >
-            {step === 1 && <StepServices />}
-            {step === 2 && <StepCalendar />}
-            {step === 3 && <StepCustomerInfo />}
-            {step === 4 && <StepConfirmation />}
+            {step === 1 && StepServices()}
+            {step === 2 && StepCalendar()}
+            {step === 3 && StepCustomerInfo()}
+            {step === 4 && StepConfirmation()}
           </motion.div>
         </AnimatePresence>
       </main>
