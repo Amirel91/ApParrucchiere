@@ -1,96 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { requireAdmin } from '@/lib/auth'
+import { serviceSchema } from '@/lib/validations'
 
+// GET /api/services - Public: get active services (for client booking)
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAuth(request)
+    const { searchParams } = new URL(request.url)
+    const includeInactive = searchParams.get('all') === 'true'
+    
+    // Check if this is an admin request
+    const authHeader = request.headers.get('cookie') || ''
+    const isAdmin = authHeader.includes('admin_token')
 
-    const business = await db.business.findUnique({
-      where: { accountId: session.accountId },
-    })
-
-    if (!business) {
-      return NextResponse.json(
-        { error: 'Attività non trovata' },
-        { status: 404 }
-      )
+    let config = await db.businessConfig.findFirst()
+    if (!config) {
+      return NextResponse.json([])
     }
 
     const services = await db.service.findMany({
-      where: { businessId: business.id },
-      include: {
-        _count: {
-          select: {
-            variants: true,
-            appointments: true,
-            staffServices: true,
-          },
-        },
+      where: {
+        configId: config.id,
+        ...(isAdmin || includeInactive ? {} : { active: true }),
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { sortOrder: 'asc' },
     })
 
     return NextResponse.json(services)
-  } catch (error: unknown) {
-    if (error instanceof Error && error.message === 'Non autenticato') {
-      return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
-    }
-    console.error('Errore nel recupero servizi:', error)
-    return NextResponse.json(
-      { error: 'Errore nel recupero servizi' },
-      { status: 500 }
-    )
+  } catch (error) {
+    console.error('GET /api/services error:', error)
+    return NextResponse.json({ error: 'Errore nel caricamento dei servizi' }, { status: 500 })
   }
 }
 
+// POST /api/services - Admin: create service
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth(request)
+    await requireAdmin()
     const body = await request.json()
-    const { name, description, durationMinutes, price, bufferMinutes, active, category, requiresStaff } = body
+    const data = serviceSchema.parse(body)
 
-    if (!name || durationMinutes === undefined || price === undefined) {
-      return NextResponse.json(
-        { error: 'Nome, durata e prezzo sono obbligatori' },
-        { status: 400 }
-      )
-    }
-
-    const business = await db.business.findUnique({
-      where: { accountId: session.accountId },
-    })
-
-    if (!business) {
-      return NextResponse.json(
-        { error: 'Attività non trovata' },
-        { status: 404 }
-      )
+    const config = await db.businessConfig.findFirst()
+    if (!config) {
+      return NextResponse.json({ error: 'Configurazione non trovata' }, { status: 404 })
     }
 
     const service = await db.service.create({
       data: {
-        name,
-        description: description || null,
-        durationMinutes,
-        price,
-        bufferMinutes: bufferMinutes ?? 10,
-        active: active ?? true,
-        category: category || null,
-        requiresStaff: requiresStaff ?? true,
-        businessId: business.id,
+        ...data,
+        configId: config.id,
       },
     })
 
     return NextResponse.json(service, { status: 201 })
   } catch (error: unknown) {
-    if (error instanceof Error && error.message === 'Non autenticato') {
-      return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
-    console.error('Errore nella creazione servizio:', error)
-    return NextResponse.json(
-      { error: 'Errore nella creazione servizio' },
-      { status: 500 }
-    )
+    if (error && typeof error === 'object' && 'issues' in error) {
+      return NextResponse.json({ error: 'Dati non validi', details: error }, { status: 400 })
+    }
+    console.error('POST /api/services error:', error)
+    return NextResponse.json({ error: 'Errore nella creazione del servizio' }, { status: 500 })
   }
 }

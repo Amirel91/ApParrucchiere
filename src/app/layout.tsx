@@ -1,25 +1,16 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
-  title: "GestioPro — Gestisci la tua attività con semplicità",
-  description: "Piattaforma SaaS per la gestione di saloni, barbieri, centri estetici, spa, fitness e molto altro. Prenotazioni, clienti, staff e calendario in un'unica soluzione.",
-  keywords: ["gestionale", "prenotazioni", "salone", "barbiere", "centro estetico", "spa", "fitness", "agenda"],
-  icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
-  },
+  title: "Prenota",
+  description: "Prenota il tuo appuntamento",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -28,12 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="it" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
-      >
+    <html lang="it">
+      <body className="antialiased min-h-screen">
         {children}
-        <Toaster />
       </body>
     </html>
   );

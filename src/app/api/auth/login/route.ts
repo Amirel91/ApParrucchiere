@@ -1,65 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { generateToken } from '@/lib/auth'
+import { verifyPassword, createToken } from '@/lib/auth'
+import { loginSchema } from '@/lib/validations'
 
+// POST /api/auth/login
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, password } = body
+    const data = loginSchema.parse(body)
 
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email e password sono obbligatori' },
-        { status: 400 }
-      )
-    }
-
-    const account = await db.account.findUnique({
-      where: { email },
-      include: { business: true },
+    const user = await db.adminUser.findUnique({
+      where: { username: data.username },
     })
 
-    if (!account) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Credenziali non valide' },
         { status: 401 }
       )
     }
 
-    if (account.password !== password) {
+    const isValid = await verifyPassword(data.password, user.password)
+    if (!isValid) {
       return NextResponse.json(
         { error: 'Credenziali non valide' },
         { status: 401 }
       )
     }
 
-    const token = generateToken()
-    const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + 30)
+    const token = await createToken({ username: user.username, id: user.id })
 
-    await db.session.create({
-      data: {
-        token,
-        accountId: account.id,
-        expiresAt,
-      },
+    const response = NextResponse.json({ success: true, username: user.username })
+    response.cookies.set('admin_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: '/',
     })
 
-    return NextResponse.json({
-      token,
-      account: {
-        id: account.id,
-        email: account.email,
-        name: account.name,
-        phone: account.phone,
-      },
-      business: account.business,
-    })
-  } catch (error) {
-    console.error('Errore durante il login:', error)
-    return NextResponse.json(
-      { error: 'Errore durante il login' },
-      { status: 500 }
-    )
+    return response
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'issues' in error) {
+      return NextResponse.json({ error: 'Dati non validi' }, { status: 400 })
+    }
+    console.error('POST /api/auth/login error:', error)
+    return NextResponse.json({ error: 'Errore di login' }, { status: 500 })
   }
 }
