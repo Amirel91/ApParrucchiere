@@ -14,6 +14,8 @@ export async function GET() {
         data: {
           shopName: 'Il Mio Negozio',
           shopDescription: '',
+          businessType: 'parrucchiere',
+          selectedImages: '[]',
         },
       })
     }
@@ -47,6 +49,9 @@ export async function PUT(request: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+    }
+    if (error && typeof error === 'object' && 'issues' in error) {
+      return NextResponse.json({ error: 'Dati non validi' }, { status: 400 })
     }
     console.error('PUT /api/config error:', error)
     return NextResponse.json({ error: 'Errore nell\'aggiornamento della configurazione' }, { status: 500 })

@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   PartyPopper,
+  CalendarX,
 } from 'lucide-react'
 
 // ==================== TYPES ====================
@@ -23,6 +24,7 @@ interface Service {
   description?: string
   price: number
   durationMinutes: number
+  cleanupMinutes: number
   active: boolean
 }
 
@@ -71,6 +73,7 @@ export default function PrenotaPage() {
   const [dayAvailabilities, setDayAvailabilities] = useState<Record<string, AvailabilityLevel>>({})
   const [availableSlots, setAvailableSlots] = useState<string[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
+  const [closedDates, setClosedDates] = useState<string[]>([])
 
   // Fetch services on mount
   useEffect(() => {
@@ -83,10 +86,27 @@ export default function PrenotaPage() {
       .catch(() => setLoading(false))
   }, [])
 
-  const totalDuration = booking.serviceIds.reduce((sum, id) => {
+  // Fetch closed dates when entering step 2
+  useEffect(() => {
+    if (step === 2) {
+      fetch('/api/closed-dates')
+        .then(r => r.json())
+        .then(data => setClosedDates(Array.isArray(data) ? data.map((d: { date: string }) => d.date) : []))
+        .catch(() => setClosedDates([]))
+    }
+  }, [step])
+
+  const isDayClosed = (dateStr: string) => closedDates.includes(dateStr)
+
+  const totalServiceDuration = booking.serviceIds.reduce((sum, id) => {
     const s = services.find(sv => sv.id === id)
     return sum + (s?.durationMinutes || 0)
   }, 0)
+  const totalCleanupDuration = booking.serviceIds.reduce((sum, id) => {
+    const s = services.find(sv => sv.id === id)
+    return sum + ((s as Service)?.cleanupMinutes || 0)
+  }, 0)
+  const totalDuration = totalServiceDuration + totalCleanupDuration
 
   const totalPrice = booking.serviceIds.reduce((sum, id) => {
     const s = services.find(sv => sv.id === id)
@@ -94,6 +114,8 @@ export default function PrenotaPage() {
   }, 0)
 
   const selectedServices = booking.serviceIds.map(id => services.find(s => s.id === id)).filter(Boolean) as Service[]
+
+  const totalCleanupInList = selectedServices.reduce((sum, s) => sum + (s.cleanupMinutes || 0), 0)
 
   // Toggle service selection
   const toggleService = (id: string) => {
@@ -169,6 +191,9 @@ export default function PrenotaPage() {
             <div className="font-semibold">
               {booking.serviceIds.length} servizio{booking.serviceIds.length > 1 ? 'i' : ''} · {formatDuration(totalDuration)}
             </div>
+            {totalCleanupInList > 0 && (
+              <div className="text-stone-400 text-xs mt-0.5">incl. {totalCleanupInList} min di pulizia/organizzazione</div>
+            )}
           </div>
           <div className="text-right">
             <span className="text-stone-400 text-sm">Totale</span>
@@ -285,6 +310,7 @@ export default function PrenotaPage() {
 
   const getDayColor = (dateStr: string, isPast: boolean) => {
     if (isPast) return 'text-stone-300'
+    if (isDayClosed(dateStr)) return 'text-red-500 bg-red-50'
     const avail = dayAvailabilities[dateStr]
     if (!avail || avail === 'none') return 'text-stone-300'
     if (avail === 'high') return 'text-emerald-600 bg-emerald-50'
@@ -305,16 +331,11 @@ export default function PrenotaPage() {
       </div>
 
       {/* Legend */}
-      <div className="flex gap-4 mb-4 text-xs text-stone-500">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-emerald-500" /> Disponibile
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-amber-500" /> Pochi posti
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-red-500" /> Completo
-        </div>
+      <div className="flex flex-wrap gap-3 mb-4 text-xs text-stone-500">
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500" /> Disponibile</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-amber-500" /> Pochi posti</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500" /> Completo</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-300 border border-red-400" /> Chiuso</div>
       </div>
 
       {/* Calendar */}
@@ -352,17 +373,22 @@ export default function PrenotaPage() {
           {calendarDays().map((day, i) => (
             <button
               key={i}
-              disabled={day.isPast || (dayAvailabilities[day.dateStr] === 'none' && !day.isPast && day.date > 0)}
-              onClick={() => day.date > 0 && !day.isPast && fetchSlotsForDate(day.dateStr)}
-              className={`aspect-square rounded-lg flex items-center justify-center text-sm transition-all ${
+              disabled={day.isPast || isDayClosed(day.dateStr) || (dayAvailabilities[day.dateStr] === 'none' && !day.isPast && day.date > 0)}
+              onClick={() => day.date > 0 && !day.isPast && !isDayClosed(day.dateStr) && fetchSlotsForDate(day.dateStr)}
+              className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all ${
                 day.date === 0
                   ? ''
                   : booking.date === day.dateStr
                   ? 'bg-stone-900 text-white font-semibold'
                   : getDayColor(day.dateStr, day.isPast)
-              } ${day.date > 0 && !day.isPast ? 'hover:bg-stone-200 cursor-pointer' : ''}`}
+              } ${day.date > 0 && !day.isPast && !isDayClosed(day.dateStr) ? 'hover:bg-stone-200 cursor-pointer' : ''}`}
             >
-              {day.date > 0 ? day.date : ''}
+              {day.date > 0 ? (
+                <>
+                  {day.date}
+                  {isDayClosed(day.dateStr) && <CalendarX className="w-3 h-3 mt-0.5" />}
+                </>
+              ) : ''}
             </button>
           ))}
         </div>
@@ -445,7 +471,7 @@ export default function PrenotaPage() {
           </div>
           <div className="flex justify-between">
             <span className="text-stone-500">Durata</span>
-            <span className="font-medium">{formatDuration(totalDuration)}</span>
+            <span className="font-medium">{formatDuration(totalServiceDuration)}{totalCleanupInList > 0 ? ` + ${totalCleanupInList} min pulizia` : ''}</span>
           </div>
           <div className="border-t border-stone-200 pt-1 mt-1">
             {selectedServices.map(s => (

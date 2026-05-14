@@ -10,7 +10,7 @@ export interface SlotResult {
  * Smart slot algorithm:
  * Given a date and a total duration (in minutes), find all time slots
  * where there's a contiguous free block of >= totalDuration minutes,
- * considering working hours and existing bookings.
+ * considering working hours, lunch break, closed dates, and existing bookings.
  *
  * Returns slots in 15-minute intervals aligned to :00, :15, :30, :45
  */
@@ -23,10 +23,16 @@ export async function getAvailableSlots(
 
   // Get working hours for this day
   const config = await db.businessConfig.findFirst({
-    include: { workingHours: true },
+    include: { workingHours: true, closedDates: true },
   })
 
   if (!config) {
+    return { date: dateStr, slots: [], availability: 'none' }
+  }
+
+  // Check if this date is explicitly closed
+  const isClosedDate = config.closedDates.some(cd => cd.date === dateStr)
+  if (isClosedDate) {
     return { date: dateStr, slots: [], availability: 'none' }
   }
 
@@ -40,6 +46,16 @@ export async function getAvailableSlots(
   const [closeH, closeM] = wh.closeTime.split(':').map(Number)
   const openMinutes = openH * 60 + openM
   const closeMinutes = closeH * 60 + closeM
+
+  // Parse lunch break
+  let lunchStart = -1
+  let lunchEnd = -1
+  if (config.lunchBreakEnabled && config.lunchBreakStart && config.lunchBreakEnd) {
+    const [lsH, lsM] = config.lunchBreakStart.split(':').map(Number)
+    const [leH, leM] = config.lunchBreakEnd.split(':').map(Number)
+    lunchStart = lsH * 60 + lsM
+    lunchEnd = leH * 60 + leM
+  }
 
   // Get existing bookings for this date (end of day is exclusive)
   const dayStart = new Date(dateStr + 'T00:00:00')
@@ -73,7 +89,14 @@ export async function getAvailableSlots(
   for (let t = openMinutes; t + totalDurationMinutes <= closeMinutes; t += STEP) {
     const slotEnd = t + totalDurationMinutes
 
-    // Check if this entire block is free
+    // Check if this slot overlaps with lunch break
+    if (lunchStart >= 0 && lunchEnd >= 0) {
+      if (t < lunchEnd && slotEnd > lunchStart) {
+        continue // Slot overlaps with lunch break, skip it
+      }
+    }
+
+    // Check if this entire block is free (no booking overlaps)
     let isFree = true
     for (const range of bookedRanges) {
       // Overlap check: slot [t, slotEnd) vs booked [range.start, range.end)
@@ -141,4 +164,15 @@ export async function isSlotAvailable(
 ): Promise<boolean> {
   const { slots } = await getAvailableSlots(dateStr, totalDurationMinutes)
   return slots.includes(time)
+}
+
+/**
+ * Check if a date is a closed date
+ */
+export async function isDateClosed(dateStr: string): Promise<boolean> {
+  const config = await db.businessConfig.findFirst({
+    include: { closedDates: true },
+  })
+  if (!config) return false
+  return config.closedDates.some(cd => cd.date === dateStr)
 }

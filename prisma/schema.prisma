@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  directUrl = env("DATABASE_URL")
 }
 
 // ============ SHOP CONFIGURATION (Singleton per tenant) ============
@@ -17,8 +17,16 @@ model BusinessConfig {
   shopPhone       String?
   shopEmail       String?
   shopAddress     String?
+  businessType    String         @default("parrucchiere") // parrucchiere, barbiere, estetica, unghie
+  selectedImages  String         @default("[]")           // JSON array of selected image paths
+
+  // Lunch break
+  lunchBreakEnabled Boolean      @default(false)
+  lunchBreakStart   String       @default("12:30")  // "HH:MM"
+  lunchBreakEnd     String       @default("14:00")  // "HH:MM"
 
   workingHours    WorkingHours[]
+  closedDates     ClosedDate[]
   services        Service[]
   bookings        Booking[]
 
@@ -34,6 +42,7 @@ model Service {
   description     String?
   price           Float
   durationMinutes Int
+  cleanupMinutes  Int             @default(0)  // cleanup/organization time after service
   active          Boolean         @default(true)
   sortOrder       Int             @default(0)
 
@@ -93,6 +102,20 @@ model WorkingHours {
   config    BusinessConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
 
   @@unique([configId, dayOfWeek])
+}
+
+// ============ CLOSED DATES ============
+
+model ClosedDate {
+  id        String   @id @default(cuid())
+  date      String   // "YYYY-MM-DD"
+  reason    String   @default("")   // optional reason (e.g. "Ferie", "Malattia", "Festivo")
+
+  configId  String
+  config    BusinessConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@unique([configId, date])
+  createdAt DateTime @default(now())
 }
 
 // ============ ADMIN USER ============

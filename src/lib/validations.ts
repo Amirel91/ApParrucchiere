@@ -26,6 +26,7 @@ export const serviceSchema = z.object({
   description: z.string().optional().default(''),
   price: z.coerce.number().min(0, 'Il prezzo deve essere positivo'),
   durationMinutes: z.coerce.number().int().min(5, 'Durata minima 5 minuti').max(480, 'Durata massima 8 ore'),
+  cleanupMinutes: z.coerce.number().int().min(0, 'Il tempo di pulizia non puo essere negativo').max(120, 'Max 120 minuti').default(0),
   active: z.boolean().default(true),
   sortOrder: z.coerce.number().int().default(0),
 })
@@ -33,11 +34,16 @@ export const serviceSchema = z.object({
 // ============ ADMIN - CONFIG ============
 
 export const configSchema = z.object({
-  shopName: z.string().min(2, 'Il nome del negozio è obbligatorio'),
+  shopName: z.string().min(2, 'Il nome del negozio e obbligatorio'),
   shopDescription: z.string().default(''),
   shopPhone: z.string().optional().default(''),
   shopEmail: z.string().email('Email non valida').optional().or(z.literal('')),
   shopAddress: z.string().optional().default(''),
+  businessType: z.string().default('parrucchiere'),
+  selectedImages: z.string().default('[]'),
+  lunchBreakEnabled: z.boolean().default(false),
+  lunchBreakStart: z.string().regex(/^\d{2}:\d{2}$/).default('12:30'),
+  lunchBreakEnd: z.string().regex(/^\d{2}:\d{2}$/).default('14:00'),
 })
 
 export const workingHoursSchema = z.object({
@@ -45,6 +51,13 @@ export const workingHoursSchema = z.object({
   openTime: z.string().regex(/^\d{2}:\d{2}$/),
   closeTime: z.string().regex(/^\d{2}:\d{2}$/),
   closed: z.boolean(),
+})
+
+// ============ ADMIN - CLOSED DATES ============
+
+export const closedDateSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data non valida'),
+  reason: z.string().optional().default(''),
 })
 
 // ============ ADMIN - AUTH ============

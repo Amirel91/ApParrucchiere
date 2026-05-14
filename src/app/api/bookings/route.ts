@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Uno o più servizi non trovati' }, { status: 400 })
     }
 
-    const totalDuration = services.reduce((sum, s) => sum + s.durationMinutes, 0)
+    const totalDuration = services.reduce((sum, s) => sum + s.durationMinutes + (s.cleanupMinutes || 0), 0)
     const totalPrice = services.reduce((sum, s) => sum + s.price, 0)
 
     // Double-check slot availability (prevent race conditions)
