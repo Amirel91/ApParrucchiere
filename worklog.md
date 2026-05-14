@@ -48,3 +48,26 @@ Stage Summary:
 - 1 feature added: homepage config polling for real-time sync
 - Pushed to https://github.com/Amirel91/ApParrucchiere.git
 
+---
+Task ID: 2
+Agent: Main Agent
+Task: Add gallery images, closed dates, cleanup time, lunch break features
+
+Work Log:
+- Generated 8 preset gallery images across 4 business categories (parrucchiere, barbiere, estetica, unghie)
+- Updated Prisma schema with new fields: BusinessConfig (businessType, selectedImages, lunchBreakEnabled, lunchBreakStart, lunchBreakEnd), Service (cleanupMinutes), new ClosedDate model
+- Updated Zod validations for all new fields
+- Created /api/closed-dates API route (GET/POST/DELETE)
+- Updated slot algorithm to respect closed dates and lunch break periods
+- Updated bookings API to sum cleanupMinutes with durationMinutes
+- Rewrote admin settings page with tabs (Negozio, Galleria, Orari, Password), image gallery selector, lunch break toggle
+- Rewrote admin calendar page with close/open day buttons, reason modal, visual closed date indicators
+- Updated admin services page with cleanupMinutes field in form and list display
+- Updated homepage with auto-sliding image carousel from selected images
+- Updated booking flow to show closed dates (red X icon, disabled), cleanup time in summaries
+
+Stage Summary:
+- 4 major features added across 19 files (+863 lines, -796 lines)
+- 8 AI-generated gallery images (1344x768 each)
+- All pushed to GitHub: https://github.com/Amirel91/ApParrucchiere.git
+
