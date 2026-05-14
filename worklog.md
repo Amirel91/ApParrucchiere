@@ -29,3 +29,22 @@ Stage Summary:
 - Database seeded with sample data
 - Build output: 16 routes (9 static, 7 dynamic)
 - Smart slot algorithm correctly handles duration-based availability
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix admin settings input bug + customer form one-character typing bug + real-time config sync
+
+Work Log:
+- Identified Bug 1: /api/working-hours route.ts was completely MISSING. Settings page useEffect used Promise.all to fetch /api/config and /api/working-hours. The missing route caused fetch failure → config stayed null → onChange handlers did nothing (prev ? ... : prev returned null)
+- Identified Bug 2: StepServices/StepCalendar/StepCustomerInfo/StepConfirmation were defined as component functions INSIDE PrenotaPage. Every re-render created new component types → React unmounted/remounted → input lost focus after 1 character
+- Created /api/working-hours/route.ts with GET (public, returns all 7 days with defaults) and PUT (admin, upsert per day)
+- Fixed prenota/page.tsx: Changed {step === X && <StepX />} to {step === X && StepX()} (function calls, not component rendering)
+- Rewrote admin/impostazioni/page.tsx: initialized config with defaults instead of null, separated fetch calls so one failure does not block the other, added save error feedback, removed unused motion import
+- Enhanced homepage (page.tsx): displays phone/email/address from config, polls /api/config every 30 seconds for near real-time sync
+- Pushed all fixes to GitHub (commit 888f284)
+
+Stage Summary:
+- 3 bugs fixed: missing API route, inner component redefinition, null config state
+- 1 feature added: homepage config polling for real-time sync
+- Pushed to https://github.com/Amirel91/ApParrucchiere.git
+
