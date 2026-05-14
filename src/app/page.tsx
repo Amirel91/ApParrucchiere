@@ -102,7 +102,7 @@ export default function HomePage() {
           transition={{ duration: 0.6, ease: 'easeOut', delay: images.length > 0 ? 0.2 : 0 }}
           className="text-center max-w-md w-full"
         >
-          {!images.length > 0 && (
+          {images.length === 0 && (
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { bookingSchema } from '@/lib/validations'
 import { isSlotAvailable } from '@/lib/slot-algorithm'
@@ -7,6 +7,7 @@ import { isSlotAvailable } from '@/lib/slot-algorithm'
 // GET /api/bookings - Admin: get all bookings
 export async function GET(request: NextRequest) {
   try {
+    await ensureDbSchema()
     await requireAdmin()
     
     const { searchParams } = new URL(request.url)
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
 // POST /api/bookings - Public: create booking
 export async function POST(request: NextRequest) {
   try {
+    await ensureDbSchema()
     const body = await request.json()
     const data = bookingSchema.parse(body)
 

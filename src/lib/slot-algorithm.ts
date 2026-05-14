@@ -1,4 +1,4 @@
-import { db } from './db'
+import { db, ensureDbSchema } from './db'
 
 export interface SlotResult {
   date: string          // "YYYY-MM-DD"
@@ -18,6 +18,7 @@ export async function getAvailableSlots(
   dateStr: string,
   totalDurationMinutes: number
 ): Promise<SlotResult> {
+  await ensureDbSchema()
   const date = new Date(dateStr + 'T00:00:00')
   const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay() // 1=Mon ... 7=Sun
 
@@ -170,6 +171,7 @@ export async function isSlotAvailable(
  * Check if a date is a closed date
  */
 export async function isDateClosed(dateStr: string): Promise<boolean> {
+  await ensureDbSchema()
   const config = await db.businessConfig.findFirst({
     include: { closedDates: true },
   })

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 
 export async function GET() {
   try {
+    await ensureDbSchema()
     await requireAdmin()
 
     const config = await db.businessConfig.findFirst()

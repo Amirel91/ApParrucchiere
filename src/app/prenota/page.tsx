@@ -235,7 +235,7 @@ export default function PrenotaPage() {
 
       // Fetch all days in between (batch)
       const daysInMonth = lastDay.getDate()
-      const promises = []
+      const promises: Promise<void>[] = []
       for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
         if (d !== 1 && d !== daysInMonth) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 
 // GET /api/bookings/[id]
@@ -8,6 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureDbSchema()
     await requireAdmin()
     const { id } = await params
 
@@ -35,6 +36,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureDbSchema()
     await requireAdmin()
     const { id } = await params
     const body = await request.json()
@@ -60,6 +62,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureDbSchema()
     await requireAdmin()
     const { id } = await params
     await db.booking.delete({ where: { id } })

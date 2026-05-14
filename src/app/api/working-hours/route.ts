@@ -76,7 +76,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Upsert each day
-    const results = []
+    const results: Awaited<ReturnType<typeof db.workingHours.update>>[] = []
     for (const entry of hoursData) {
       const existing = await db.workingHours.findUnique({
         where: {
