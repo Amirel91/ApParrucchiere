@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { serviceSchema } from '@/lib/validations'
 
 // GET /api/services - Public: get active services (for client booking)
 export async function GET(request: NextRequest) {
   try {
+    await ensureDbSchema()
     const { searchParams } = new URL(request.url)
     const includeInactive = searchParams.get('all') === 'true'
     
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
 // POST /api/services - Admin: create service
 export async function POST(request: NextRequest) {
   try {
+    await ensureDbSchema()
     await requireAdmin()
     const body = await request.json()
     const data = serviceSchema.parse(body)

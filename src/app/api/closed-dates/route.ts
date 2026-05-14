@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { closedDateSchema } from '@/lib/validations'
 
@@ -7,6 +7,7 @@ import { closedDateSchema } from '@/lib/validations'
 // Supports ?from=YYYY-MM-DD&to=YYYY-MM-DD for filtering
 export async function GET(request: NextRequest) {
   try {
+    await ensureDbSchema()
     const { searchParams } = new URL(request.url)
     const from = searchParams.get('from')
     const to = searchParams.get('to')
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest) {
 // POST /api/closed-dates - Admin: add a closed date
 export async function POST(request: NextRequest) {
   try {
+    await ensureDbSchema()
     await requireAdmin()
     const body = await request.json()
     const data = closedDateSchema.parse(body)
@@ -94,6 +96,7 @@ export async function POST(request: NextRequest) {
 // DELETE /api/closed-dates - Admin: remove a closed date
 export async function DELETE(request: NextRequest) {
   try {
+    await ensureDbSchema()
     await requireAdmin()
 
     const { searchParams } = new URL(request.url)

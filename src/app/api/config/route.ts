@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { configSchema } from '@/lib/validations'
 
 // GET /api/config - Public: get business config (for client homepage)
 export async function GET() {
   try {
+    await ensureDbSchema()
     let config = await db.businessConfig.findFirst()
     
     // Auto-create default if none exists
@@ -30,6 +31,7 @@ export async function GET() {
 // PUT /api/config - Admin: update business config
 export async function PUT(request: NextRequest) {
   try {
+    await ensureDbSchema()
     await requireAdmin()
     const body = await request.json()
     const data = configSchema.parse(body)

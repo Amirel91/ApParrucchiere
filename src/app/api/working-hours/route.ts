@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { workingHoursSchema } from '@/lib/validations'
 
 // GET /api/working-hours - Public: get working hours
 export async function GET() {
   try {
+    await ensureDbSchema()
     const config = await db.businessConfig.findFirst({
       select: { id: true },
     })
@@ -52,6 +53,7 @@ export async function GET() {
 // PUT /api/working-hours - Admin: update working hours
 export async function PUT(request: NextRequest) {
   try {
+    await ensureDbSchema()
     await requireAdmin()
 
     const body = await request.json()
