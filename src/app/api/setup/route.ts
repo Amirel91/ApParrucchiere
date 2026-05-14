@@ -1,138 +1,118 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { generateToken } from '@/lib/auth'
 
-// POST /api/setup - Initialize database with seed data
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const existingUsers = await db.user.count()
-    if (existingUsers > 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'Database already initialized',
-        users: existingUsers,
-      })
+    // Try to clean existing data safely
+    const models = ['appointment', 'workingHours', 'session', 'business', 'account', 'service', 'staff', 'client'] as const
+    for (const model of models) {
+      try {
+        if ((db as any)[model] && typeof (db as any)[model].deleteMany === 'function') {
+          await (db as any)[model].deleteMany()
+        }
+      } catch {}
     }
 
-    const admin = await db.user.create({
+    // Also try junction tables
+    for (const model of ['staffService', 'serviceVariant']) {
+      try {
+        if ((db as any)[model] && typeof (db as any)[model].deleteMany === 'function') {
+          await (db as any)[model].deleteMany()
+        }
+      } catch {}
+    }
+
+    // Create Account
+    const account = await db.account.create({
       data: {
         name: 'Mario Rossi',
-        email: 'admin@barber.it',
-        password: 'admin',
+        email: 'demo@gestionale.it',
+        password: 'demo123',
         phone: '+39 333 1234567',
-        role: 'ADMIN',
       },
     })
 
-    const client1 = await db.user.create({
+    // Create Business
+    const business = await db.business.create({
       data: {
-        name: 'Luca Bianchi',
-        email: 'luca@email.it',
-        password: 'client',
-        phone: '+39 345 9876543',
-        role: 'CLIENT',
+        accountId: account.id,
+        name: 'Salon Bella Vista',
+        slug: 'salon-bella-vista',
+        activityType: 'SALONE',
+        description: 'Salone di parrucchiere e centro estetico',
+        address: 'Via Roma 42',
+        city: 'Milano',
+        province: 'MI',
+        phone: '+39 02 1234567',
+        email: 'info@salonbellavista.it',
+        website: 'https://salonbellavista.it',
       },
     })
 
-    const client2 = await db.user.create({
-      data: {
-        name: 'Anna Verdi',
-        email: 'anna@email.it',
-        password: 'client',
-        phone: '+39 346 1112233',
-        role: 'CLIENT',
-      },
+    // Create Working Hours
+    await db.workingHours.createMany({
+      data: [
+        { dayOfWeek: 1, openTime: '09:00', closeTime: '18:00', closed: false, businessId: business.id },
+        { dayOfWeek: 2, openTime: '09:00', closeTime: '18:00', closed: false, businessId: business.id },
+        { dayOfWeek: 3, openTime: '09:00', closeTime: '18:00', closed: false, businessId: business.id },
+        { dayOfWeek: 4, openTime: '09:00', closeTime: '18:00', closed: false, businessId: business.id },
+        { dayOfWeek: 5, openTime: '09:00', closeTime: '18:00', closed: false, businessId: business.id },
+        { dayOfWeek: 6, openTime: '09:00', closeTime: '13:00', closed: false, businessId: business.id },
+        { dayOfWeek: 0, openTime: '09:00', closeTime: '13:00', closed: true, businessId: business.id },
+      ],
     })
 
-    // Services - UOMO
-    const uomoServices = await Promise.all([
-      db.service.create({ data: { name: 'Taglio Capelli Uomo', description: 'Taglio classico con styling finale', durationMinutes: 30, price: 18.00, bufferMinutes: 10, gender: 'UOMO' } }),
-      db.service.create({ data: { name: 'Barba', description: 'Rasatura tradizionale con panno caldo', durationMinutes: 20, price: 12.00, bufferMinutes: 10, gender: 'UOMO' } }),
-      db.service.create({ data: { name: 'Taglio + Barba', description: 'Taglio completo con rasatura barba', durationMinutes: 45, price: 25.00, bufferMinutes: 10, gender: 'UOMO' } }),
-      db.service.create({ data: { name: 'Shampoo + Taglio', description: 'Lavaggio con shampoo professionale e taglio', durationMinutes: 40, price: 22.00, bufferMinutes: 10, gender: 'UOMO' } }),
-      db.service.create({ data: { name: 'Colore Uomo', description: 'Colorazione capelli con prodotti professionali', durationMinutes: 45, price: 30.00, bufferMinutes: 10, gender: 'UOMO' } }),
+    // Create Services
+    const services = await Promise.all([
+      db.service.create({ data: { businessId: business.id, name: 'Taglio Donna', description: 'Taglio e styling per donna', durationMinutes: 45, price: 35, bufferMinutes: 10, category: 'Tagli', active: true } }),
+      db.service.create({ data: { businessId: business.id, name: 'Taglio Uomo', description: 'Taglio classico per uomo', durationMinutes: 30, price: 20, bufferMinutes: 10, category: 'Tagli', active: true } }),
+      db.service.create({ data: { businessId: business.id, name: 'Piega', description: 'Piega con asciugatura', durationMinutes: 30, price: 25, bufferMinutes: 5, category: 'Styling', active: true } }),
+      db.service.create({ data: { businessId: business.id, name: 'Colore', description: 'Colorazione completa', durationMinutes: 60, price: 55, bufferMinutes: 15, category: 'Colore', active: true } }),
+      db.service.create({ data: { businessId: business.id, name: 'Trattamento Cheratina', description: 'Trattamento lisciante alla cheratina', durationMinutes: 90, price: 90, bufferMinutes: 15, category: 'Trattamenti', active: true } }),
     ])
 
-    // Services - DONNA
-    const donnaServices = await Promise.all([
-      db.service.create({ data: { name: 'Taglio Capelli Donna', description: 'Taglio e piega con consulenza stile', durationMinutes: 45, price: 25.00, bufferMinutes: 10, gender: 'DONNA' } }),
-      db.service.create({ data: { name: 'Piega', description: 'Piega professionale con asciugatura', durationMinutes: 30, price: 18.00, bufferMinutes: 10, gender: 'DONNA' } }),
-      db.service.create({ data: { name: 'Shampoo + Piega', description: 'Lavaggio e piega completa', durationMinutes: 40, price: 22.00, bufferMinutes: 10, gender: 'DONNA' } }),
-      db.service.create({ data: { name: 'Colore', description: 'Colorazione completa con prodotti professionali', durationMinutes: 60, price: 40.00, bufferMinutes: 15, gender: 'DONNA' } }),
-      db.service.create({ data: { name: 'Meches', description: 'Schiariture e meches personalizzate', durationMinutes: 90, price: 55.00, bufferMinutes: 15, gender: 'DONNA' } }),
-    ])
+    // Create Staff
+    const staff1 = await db.staff.create({
+      data: { businessId: business.id, name: 'Laura Bianchi', phone: '+39 333 9876543', role: 'OWNER', color: '#ec4899', active: true },
+    })
+    const staff2 = await db.staff.create({
+      data: { businessId: business.id, name: 'Marco Verdi', phone: '+39 333 5551234', role: 'OPERATOR', color: '#10b981', active: true },
+    })
 
-    // UNISEX
-    await db.service.create({ data: { name: 'Taglio Bambini', description: 'Taglio per bambini fino a 12 anni', durationMinutes: 20, price: 12.00, bufferMinutes: 10, gender: 'UNISEX' } })
+    // Create Clients
+    const client1 = await db.client.create({ data: { businessId: business.id, firstName: 'Giulia', lastName: 'Ferrari', phone: '+39 345 1112233', gender: 'DONNA' } })
+    const client2 = await db.client.create({ data: { businessId: business.id, firstName: 'Alessandro', lastName: 'Romano', phone: '+39 345 4445566', gender: 'UOMO' } })
+    const client3 = await db.client.create({ data: { businessId: business.id, firstName: 'Chiara', lastName: 'Esposito', phone: '+39 345 7778899', gender: 'DONNA' } })
 
-    // Business hours
-    await Promise.all([
-      db.businessHours.create({ data: { dayOfWeek: 1, openTime: '09:00', closeTime: '18:00', closed: false } }),
-      db.businessHours.create({ data: { dayOfWeek: 2, openTime: '09:00', closeTime: '18:00', closed: false } }),
-      db.businessHours.create({ data: { dayOfWeek: 3, openTime: '09:00', closeTime: '18:00', closed: false } }),
-      db.businessHours.create({ data: { dayOfWeek: 4, openTime: '09:00', closeTime: '18:00', closed: false } }),
-      db.businessHours.create({ data: { dayOfWeek: 5, openTime: '09:00', closeTime: '18:00', closed: false } }),
-      db.businessHours.create({ data: { dayOfWeek: 6, openTime: '09:00', closeTime: '13:00', closed: false } }),
-      db.businessHours.create({ data: { dayOfWeek: 0, openTime: '00:00', closeTime: '00:00', closed: true } }),
-    ])
-
-    // Sample appointments
+    // Create Appointments
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     tomorrow.setHours(10, 0, 0, 0)
+    const dayAfter = new Date(tomorrow)
+    dayAfter.setDate(dayAfter.getDate() + 1)
+    dayAfter.setHours(14, 0, 0, 0)
 
-    const dayAfterTomorrow = new Date()
-    dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2)
-    dayAfterTomorrow.setHours(14, 0, 0, 0)
+    await db.appointment.create({ data: { businessId: business.id, clientId: client1.id, serviceId: services[0].id, staffId: staff1.id, startTime: tomorrow, endTime: new Date(tomorrow.getTime() + 45 * 60 * 1000), status: 'CONFIRMED' } })
+    await db.appointment.create({ data: { businessId: business.id, clientId: client2.id, serviceId: services[1].id, staffId: staff2.id, startTime: new Date(tomorrow.getTime() + 60 * 60 * 1000), endTime: new Date(tomorrow.getTime() + 90 * 60 * 1000), status: 'CONFIRMED' } })
+    await db.appointment.create({ data: { businessId: business.id, clientId: client3.id, serviceId: services[3].id, staffId: staff1.id, startTime: dayAfter, endTime: new Date(dayAfter.getTime() + 60 * 60 * 1000), status: 'PENDING' } })
 
-    await db.appointment.create({
-      data: {
-        clientId: client1.id,
-        serviceId: uomoServices[0].id,
-        startTime: tomorrow,
-        endTime: new Date(tomorrow.getTime() + 30 * 60 * 1000),
-        status: 'CONFIRMED',
-        clientName: client1.name,
-        clientPhone: client1.phone,
-        clientEmail: client1.email,
-        groupCode: 'demo-1',
-      },
-    })
-
-    await db.appointment.create({
-      data: {
-        clientId: client2.id,
-        serviceId: donnaServices[0].id,
-        startTime: dayAfterTomorrow,
-        endTime: new Date(dayAfterTomorrow.getTime() + 45 * 60 * 1000),
-        status: 'CONFIRMED',
-        clientName: client2.name,
-        clientPhone: client2.phone,
-        clientEmail: client2.email,
-        groupCode: 'demo-2',
-      },
-    })
+    // Create Session
+    const token = generateToken()
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 30)
+    await db.session.create({ data: { token, accountId: account.id, expiresAt } })
 
     return NextResponse.json({
-      success: true,
-      message: 'Database initialized',
-      data: { users: 3, services: 11, businessHours: 7, appointments: 2 },
-    })
-  } catch (err) {
-    console.error('[API /setup POST] Error:', err)
-    return NextResponse.json(
-      { error: 'Errore nell\'inizializzazione', details: String(err) },
-      { status: 500 }
-    )
-  }
-}
-
-export async function GET() {
-  try {
-    const userCount = await db.user.count()
-    const serviceCount = await db.service.count()
-    return NextResponse.json({ initialized: userCount > 0, users: userCount, services: serviceCount })
-  } catch (err) {
-    console.error('[API /setup GET] Error:', err)
-    return NextResponse.json({ initialized: false, error: 'Database not connected' }, { status: 500 })
+      message: 'Dati demo creati con successo',
+      token,
+      account: { id: account.id, email: account.email, password: account.password, name: account.name },
+      business: { id: business.id, name: business.name, slug: business.slug, activityType: business.activityType },
+      stats: { services: 5, staff: 2, clients: 3, appointments: 3 },
+    }, { status: 201 })
+  } catch (error) {
+    console.error('Setup error:', error)
+    const msg = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: 'Errore nella creazione dei dati demo', details: msg }, { status: 500 })
   }
 }

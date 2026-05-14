@@ -21,36 +21,30 @@ export async function GET(
       )
     }
 
-    const service = await db.service.findFirst({
+    const client = await db.client.findFirst({
       where: { id, businessId: business.id },
       include: {
-        variants: {
-          orderBy: { createdAt: 'desc' },
-        },
         _count: {
-          select: {
-            appointments: true,
-            staffServices: true,
-          },
+          select: { appointments: true },
         },
       },
     })
 
-    if (!service) {
+    if (!client) {
       return NextResponse.json(
-        { error: 'Servizio non trovato' },
+        { error: 'Cliente non trovato' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json(service)
+    return NextResponse.json(client)
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Non autenticato') {
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
     }
-    console.error('Errore nel recupero servizio:', error)
+    console.error('Errore nel recupero cliente:', error)
     return NextResponse.json(
-      { error: 'Errore nel recupero servizio' },
+      { error: 'Errore nel recupero cliente' },
       { status: 500 }
     )
   }
@@ -64,7 +58,7 @@ export async function PUT(
     const session = await requireAuth(request)
     const { id } = await params
     const body = await request.json()
-    const { name, description, durationMinutes, price, bufferMinutes, active, category, requiresStaff } = body
+    const { firstName, lastName, phone, email, notes, gender } = body
 
     const business = await db.business.findUnique({
       where: { accountId: session.accountId },
@@ -77,28 +71,44 @@ export async function PUT(
       )
     }
 
-    const service = await db.service.findFirst({
+    const client = await db.client.findFirst({
       where: { id, businessId: business.id },
     })
 
-    if (!service) {
+    if (!client) {
       return NextResponse.json(
-        { error: 'Servizio non trovato' },
+        { error: 'Cliente non trovato' },
         { status: 404 }
       )
     }
 
-    const updated = await db.service.update({
+    // Check phone uniqueness if being changed
+    if (phone && phone !== client.phone) {
+      const existing = await db.client.findUnique({
+        where: {
+          businessId_phone: {
+            businessId: business.id,
+            phone,
+          },
+        },
+      })
+      if (existing) {
+        return NextResponse.json(
+          { error: 'Esiste già un cliente con questo numero di telefono' },
+          { status: 409 }
+        )
+      }
+    }
+
+    const updated = await db.client.update({
       where: { id },
       data: {
-        ...(name !== undefined && { name }),
-        ...(description !== undefined && { description }),
-        ...(durationMinutes !== undefined && { durationMinutes }),
-        ...(price !== undefined && { price }),
-        ...(bufferMinutes !== undefined && { bufferMinutes }),
-        ...(active !== undefined && { active }),
-        ...(category !== undefined && { category }),
-        ...(requiresStaff !== undefined && { requiresStaff }),
+        ...(firstName !== undefined && { firstName }),
+        ...(lastName !== undefined && { lastName }),
+        ...(phone !== undefined && { phone }),
+        ...(email !== undefined && { email }),
+        ...(notes !== undefined && { notes }),
+        ...(gender !== undefined && { gender }),
       },
     })
 
@@ -107,9 +117,9 @@ export async function PUT(
     if (error instanceof Error && error.message === 'Non autenticato') {
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
     }
-    console.error('Errore nell\'aggiornamento servizio:', error)
+    console.error('Errore nell\'aggiornamento cliente:', error)
     return NextResponse.json(
-      { error: 'Errore nell\'aggiornamento servizio' },
+      { error: 'Errore nell\'aggiornamento cliente' },
       { status: 500 }
     )
   }
@@ -134,39 +144,27 @@ export async function DELETE(
       )
     }
 
-    const service = await db.service.findFirst({
+    const client = await db.client.findFirst({
       where: { id, businessId: business.id },
-      include: {
-        _count: {
-          select: { appointments: true },
-        },
-      },
     })
 
-    if (!service) {
+    if (!client) {
       return NextResponse.json(
-        { error: 'Servizio non trovato' },
+        { error: 'Cliente non trovato' },
         { status: 404 }
       )
     }
 
-    if (service._count.appointments > 0) {
-      return NextResponse.json(
-        { error: 'Impossibile eliminare il servizio: esistono appuntamenti collegati' },
-        { status: 409 }
-      )
-    }
+    await db.client.delete({ where: { id } })
 
-    await db.service.delete({ where: { id } })
-
-    return NextResponse.json({ message: 'Servizio eliminato con successo' })
+    return NextResponse.json({ message: 'Cliente eliminato con successo' })
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Non autenticato') {
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
     }
-    console.error('Errore nell\'eliminazione servizio:', error)
+    console.error('Errore nell\'eliminazione cliente:', error)
     return NextResponse.json(
-      { error: 'Errore nell\'eliminazione servizio' },
+      { error: 'Errore nell\'eliminazione cliente' },
       { status: 500 }
     )
   }

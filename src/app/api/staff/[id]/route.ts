@@ -21,36 +21,37 @@ export async function GET(
       )
     }
 
-    const service = await db.service.findFirst({
+    const member = await db.staff.findFirst({
       where: { id, businessId: business.id },
       include: {
-        variants: {
-          orderBy: { createdAt: 'desc' },
+        staffServices: {
+          select: { serviceId: true },
         },
         _count: {
-          select: {
-            appointments: true,
-            staffServices: true,
-          },
+          select: { appointments: true },
         },
       },
     })
 
-    if (!service) {
+    if (!member) {
       return NextResponse.json(
-        { error: 'Servizio non trovato' },
+        { error: 'Membro del personale non trovato' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json(service)
+    return NextResponse.json({
+      ...member,
+      serviceIds: member.staffServices.map((ss) => ss.serviceId),
+      staffServices: undefined,
+    })
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Non autenticato') {
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
     }
-    console.error('Errore nel recupero servizio:', error)
+    console.error('Errore nel recupero personale:', error)
     return NextResponse.json(
-      { error: 'Errore nel recupero servizio' },
+      { error: 'Errore nel recupero personale' },
       { status: 500 }
     )
   }
@@ -64,7 +65,7 @@ export async function PUT(
     const session = await requireAuth(request)
     const { id } = await params
     const body = await request.json()
-    const { name, description, durationMinutes, price, bufferMinutes, active, category, requiresStaff } = body
+    const { name, phone, email, role, color, active } = body
 
     const business = await db.business.findUnique({
       where: { accountId: session.accountId },
@@ -77,28 +78,26 @@ export async function PUT(
       )
     }
 
-    const service = await db.service.findFirst({
+    const member = await db.staff.findFirst({
       where: { id, businessId: business.id },
     })
 
-    if (!service) {
+    if (!member) {
       return NextResponse.json(
-        { error: 'Servizio non trovato' },
+        { error: 'Membro del personale non trovato' },
         { status: 404 }
       )
     }
 
-    const updated = await db.service.update({
+    const updated = await db.staff.update({
       where: { id },
       data: {
         ...(name !== undefined && { name }),
-        ...(description !== undefined && { description }),
-        ...(durationMinutes !== undefined && { durationMinutes }),
-        ...(price !== undefined && { price }),
-        ...(bufferMinutes !== undefined && { bufferMinutes }),
+        ...(phone !== undefined && { phone }),
+        ...(email !== undefined && { email }),
+        ...(role !== undefined && { role }),
+        ...(color !== undefined && { color }),
         ...(active !== undefined && { active }),
-        ...(category !== undefined && { category }),
-        ...(requiresStaff !== undefined && { requiresStaff }),
       },
     })
 
@@ -107,9 +106,9 @@ export async function PUT(
     if (error instanceof Error && error.message === 'Non autenticato') {
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
     }
-    console.error('Errore nell\'aggiornamento servizio:', error)
+    console.error('Errore nell\'aggiornamento personale:', error)
     return NextResponse.json(
-      { error: 'Errore nell\'aggiornamento servizio' },
+      { error: 'Errore nell\'aggiornamento personale' },
       { status: 500 }
     )
   }
@@ -134,39 +133,27 @@ export async function DELETE(
       )
     }
 
-    const service = await db.service.findFirst({
+    const member = await db.staff.findFirst({
       where: { id, businessId: business.id },
-      include: {
-        _count: {
-          select: { appointments: true },
-        },
-      },
     })
 
-    if (!service) {
+    if (!member) {
       return NextResponse.json(
-        { error: 'Servizio non trovato' },
+        { error: 'Membro del personale non trovato' },
         { status: 404 }
       )
     }
 
-    if (service._count.appointments > 0) {
-      return NextResponse.json(
-        { error: 'Impossibile eliminare il servizio: esistono appuntamenti collegati' },
-        { status: 409 }
-      )
-    }
+    await db.staff.delete({ where: { id } })
 
-    await db.service.delete({ where: { id } })
-
-    return NextResponse.json({ message: 'Servizio eliminato con successo' })
+    return NextResponse.json({ message: 'Membro del personale eliminato con successo' })
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Non autenticato') {
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
     }
-    console.error('Errore nell\'eliminazione servizio:', error)
+    console.error('Errore nell\'eliminazione personale:', error)
     return NextResponse.json(
-      { error: 'Errore nell\'eliminazione servizio' },
+      { error: 'Errore nell\'eliminazione personale' },
       { status: 500 }
     )
   }

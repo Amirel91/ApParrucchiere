@@ -8,54 +8,200 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model User {
-  id          String        @id @default(cuid())
-  name        String
-  email       String        @unique
-  phone       String?
-  role        String        @default("CLIENT")
-  password    String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  appointments Appointment[]
+// ============ BUSINESS OWNER (TENANT) ============
+
+model Account {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  password     String
+  name         String
+  phone        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  business     Business?
+  sessions     Session[]
 }
 
+// ============ BUSINESS PROFILE ============
+
+model Business {
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  description  String?
+  address      String?
+  city         String?
+  province     String?
+  phone        String?
+  email        String?
+  website      String?
+  logoUrl      String?
+  activityType String    // SALONE, BARBIERE, UNGHIE, SPA_SAUNA, MEDSPA, MASSAGGI, FITNESS_RECUPERO, FISIOTERAPIA, CENTRI_SANITARI, TATUAGGI_PIERCING, TOELETTATURA_ANIMALI, CENTRO_ABBRONZANTE
+
+  accountId    String    @unique
+  account      Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  services     Service[]
+  staff        Staff[]
+  clients      Client[]
+  appointments Appointment[]
+  workingHours WorkingHours[]
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// ============ SERVICES (detailed) ============
+
 model Service {
-  id              String        @id @default(cuid())
+  id              String           @id @default(cuid())
   name            String
   description     String?
   durationMinutes Int
   price           Float
-  bufferMinutes   Int           @default(10)
-  gender          String        @default("UNISEX")
-  active          Boolean       @default(true)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  bufferMinutes   Int              @default(10)
+  active          Boolean          @default(true)
+  category        String?          // optional sub-category within the business
+  requiresStaff   Boolean          @default(true)
+
+  businessId      String
+  business        Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  variants        ServiceVariant[]
   appointments    Appointment[]
+  staffServices   StaffService[]
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
-model BusinessHours {
-  id        String   @id @default(cuid())
-  dayOfWeek Int
-  openTime  String
-  closeTime String
-  closed    Boolean  @default(false)
+// ============ SERVICE VARIANTS (e.g., "Taglio + Piega" as variant of "Taglio") ============
+
+model ServiceVariant {
+  id              String  @id @default(cuid())
+  name            String
+  description     String?
+  durationMinutes Int
+  price           Float
+  active          Boolean @default(true)
+
+  serviceId       String
+  service         Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  appointments    Appointment[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
+
+// ============ STAFF / TEAM ============
+
+model Staff {
+  id           String    @id @default(cuid())
+  name         String
+  phone        String?
+  email        String?
+  role         String    @default("OPERATOR") // OWNER, OPERATOR, ASSISTANT
+  color        String    @default("#6366f1")
+  active       Boolean   @default(true)
+
+  businessId   String
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  appointments Appointment[]
+  staffServices StaffService[]
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// ============ STAFF-SERVICE RELATION (which staff can do which services) ============
+
+model StaffService {
+  id        String  @id @default(cuid())
+  staffId   String
+  staff     Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, serviceId])
+}
+
+// ============ CLIENTS (CUSTOMERS) ============
+
+model Client {
+  id           String    @id @default(cuid())
+  firstName    String
+  lastName     String
+  phone        String?
+  email        String?
+  notes        String?
+  gender       String?   // UOMO, DONNA, ALTRO
+
+  businessId   String
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  appointments Appointment[]
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([businessId, phone])
+}
+
+// ============ APPOINTMENTS ============
 
 model Appointment {
   id            String   @id @default(cuid())
-  clientId      String
-  client        User     @relation(fields: [clientId], references: [id])
-  serviceId     String
-  service       Service  @relation(fields: [serviceId], references: [id])
+  status        String   @default("CONFIRMED") // CONFIRMED, PENDING, CANCELLED, COMPLETED, NO_SHOW
   startTime     DateTime
   endTime       DateTime
-  status        String   @default("CONFIRMED")
-  clientName    String
-  clientPhone   String?
-  clientEmail   String?
-  reminderSent  Boolean  @default(false)
-  groupCode     String?
+  notes         String?
+  clientNotes   String?
+
+  businessId    String
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id])
+
+  serviceId     String
+  service       Service  @relation(fields: [serviceId], references: [id])
+
+  variantId     String?
+  variant       ServiceVariant? @relation(fields: [variantId], references: [id])
+
+  staffId       String?
+  staff         Staff?   @relation(fields: [staffId], references: [id])
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// ============ WORKING HOURS ============
+
+model WorkingHours {
+  id         String  @id @default(cuid())
+  dayOfWeek  Int     // 0=Sun, 1=Mon, ... 6=Sat
+  openTime   String  // "09:00"
+  closeTime  String  // "18:00"
+  closed     Boolean @default(false)
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, dayOfWeek])
+}
+
+// ============ SESSIONS (for auth) ============
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
 }

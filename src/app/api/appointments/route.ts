@@ -1,31 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const role = searchParams.get('role')
-    const userId = searchParams.get('userId')
+    const session = await requireAuth(request)
 
-    if (role === 'CLIENT' && userId) {
-      const appointments = await db.appointment.findMany({
-        where: { clientId: userId },
-        include: { service: true },
-        orderBy: { startTime: 'desc' },
-      })
-      return NextResponse.json(appointments)
+    const business = await db.business.findUnique({
+      where: { accountId: session.accountId },
+    })
+
+    if (!business) {
+      return NextResponse.json(
+        { error: 'Attività non trovata' },
+        { status: 404 }
+      )
     }
 
-    // Admin: return all appointments
+    const { searchParams } = new URL(request.url)
+    const date = searchParams.get('date')
+    const staffId = searchParams.get('staffId')
+
+    const where: Record<string, unknown> = { businessId: business.id }
+
+    if (date) {
+      const startDate = new Date(date)
+      const endDate = new Date(date)
+      endDate.setDate(endDate.getDate() + 1)
+
+      where.startTime = {
+        gte: startDate,
+        lt: endDate,
+      }
+    }
+
+    if (staffId) {
+      where.staffId = staffId
+    }
+
     const appointments = await db.appointment.findMany({
-      include: { service: true, client: { select: { name: true, email: true, phone: true } } },
-      orderBy: { startTime: 'desc' },
+      where,
+      include: {
+        client: {
+          select: { id: true, firstName: true, lastName: true, phone: true },
+        },
+        service: {
+          select: { id: true, name: true, durationMinutes: true, price: true },
+        },
+        variant: {
+          select: { id: true, name: true, durationMinutes: true, price: true },
+        },
+        staff: {
+          select: { id: true, name: true, color: true },
+        },
+      },
+      orderBy: { startTime: 'asc' },
     })
+
     return NextResponse.json(appointments)
-  } catch (err) {
-    console.error('[API /appointments GET] Error:', err)
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'Non autenticato') {
+      return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
+    }
+    console.error('Errore nel recupero appuntamenti:', error)
     return NextResponse.json(
-      { error: 'Errore nel recupero degli appuntamenti' },
+      { error: 'Errore nel recupero appuntamenti' },
       { status: 500 }
     )
   }
@@ -33,18 +72,53 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await requireAuth(request)
     const body = await request.json()
-    const { clientId, serviceId, startTime, clientName, clientPhone, clientEmail } = body
+    const {
+      clientId,
+      serviceId,
+      variantId,
+      staffId,
+      startTime,
+      endTime,
+      status,
+      notes,
+      clientNotes,
+    } = body
 
-    if (!clientId || !serviceId || !startTime || !clientName) {
+    if (!clientId || !serviceId || !startTime || !endTime) {
       return NextResponse.json(
-        { error: 'Dati mancanti per la prenotazione' },
+        { error: 'Cliente, servizio, data inizio e data fine sono obbligatori' },
         { status: 400 }
       )
     }
 
-    const service = await db.service.findUnique({
-      where: { id: serviceId },
+    const business = await db.business.findUnique({
+      where: { accountId: session.accountId },
+    })
+
+    if (!business) {
+      return NextResponse.json(
+        { error: 'Attività non trovata' },
+        { status: 404 }
+      )
+    }
+
+    // Verify client belongs to business
+    const client = await db.client.findFirst({
+      where: { id: clientId, businessId: business.id },
+    })
+
+    if (!client) {
+      return NextResponse.json(
+        { error: 'Cliente non trovato' },
+        { status: 404 }
+      )
+    }
+
+    // Verify service belongs to business
+    const service = await db.service.findFirst({
+      where: { id: serviceId, businessId: business.id },
     })
 
     if (!service) {
@@ -54,56 +128,69 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const start = new Date(startTime)
-    const end = new Date(start.getTime() + service.durationMinutes * 60 * 1000)
+    // Verify variant if provided
+    if (variantId) {
+      const variant = await db.serviceVariant.findFirst({
+        where: { id: variantId, serviceId },
+      })
+      if (!variant) {
+        return NextResponse.json(
+          { error: 'Variante non trovata' },
+          { status: 404 }
+        )
+      }
+    }
 
-    // Double-check: verify no conflict with existing appointments
-    const startOfDay = new Date(start)
-    startOfDay.setUTCHours(0, 0, 0, 0)
-    const endOfDay = new Date(start)
-    endOfDay.setUTCHours(23, 59, 59, 999)
-
-    const existingAppointments = await db.appointment.findMany({
-      where: {
-        startTime: { gte: startOfDay, lt: endOfDay },
-        status: { in: ['CONFIRMED', 'PENDING'] },
-      },
-      select: { startTime: true, endTime: true },
-    })
-
-    // Check conflict: new slot [start, end] overlaps with any existing [aptStart, aptEnd]
-    const hasConflict = existingAppointments.some((apt) => {
-      const aptStart = new Date(apt.startTime).getTime()
-      const aptEnd = new Date(apt.endTime).getTime()
-      return start.getTime() < aptEnd && end.getTime() > aptStart
-    })
-
-    if (hasConflict) {
-      return NextResponse.json(
-        { error: 'Questo slot non è più disponibile. Ricarica la pagina e seleziona un altro orario.' },
-        { status: 409 }
-      )
+    // Verify staff if provided
+    if (staffId) {
+      const staff = await db.staff.findFirst({
+        where: { id: staffId, businessId: business.id },
+      })
+      if (!staff) {
+        return NextResponse.json(
+          { error: 'Membro del personale non trovato' },
+          { status: 404 }
+        )
+      }
     }
 
     const appointment = await db.appointment.create({
       data: {
         clientId,
         serviceId,
-        startTime: start,
-        endTime: end,
-        status: 'CONFIRMED',
-        clientName,
-        clientPhone: clientPhone || null,
-        clientEmail: clientEmail || null,
+        variantId: variantId || null,
+        staffId: staffId || null,
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+        status: status || 'CONFIRMED',
+        notes: notes || null,
+        clientNotes: clientNotes || null,
+        businessId: business.id,
       },
-      include: { service: true },
+      include: {
+        client: {
+          select: { id: true, firstName: true, lastName: true, phone: true },
+        },
+        service: {
+          select: { id: true, name: true, durationMinutes: true, price: true },
+        },
+        variant: {
+          select: { id: true, name: true, durationMinutes: true, price: true },
+        },
+        staff: {
+          select: { id: true, name: true, color: true },
+        },
+      },
     })
 
     return NextResponse.json(appointment, { status: 201 })
-  } catch (err) {
-    console.error('[API /appointments POST] Error:', err)
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'Non autenticato') {
+      return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
+    }
+    console.error('Errore nella creazione appuntamento:', error)
     return NextResponse.json(
-      { error: 'Errore nella creazione dell\'appuntamento' },
+      { error: 'Errore nella creazione appuntamento' },
       { status: 500 }
     )
   }

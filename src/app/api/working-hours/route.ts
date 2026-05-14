@@ -17,42 +17,33 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const services = await db.service.findMany({
+    const workingHours = await db.workingHours.findMany({
       where: { businessId: business.id },
-      include: {
-        _count: {
-          select: {
-            variants: true,
-            appointments: true,
-            staffServices: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { dayOfWeek: 'asc' },
     })
 
-    return NextResponse.json(services)
+    return NextResponse.json(workingHours)
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Non autenticato') {
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
     }
-    console.error('Errore nel recupero servizi:', error)
+    console.error('Errore nel recupero orari:', error)
     return NextResponse.json(
-      { error: 'Errore nel recupero servizi' },
+      { error: 'Errore nel recupero degli orari di lavoro' },
       { status: 500 }
     )
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function PUT(request: NextRequest) {
   try {
     const session = await requireAuth(request)
     const body = await request.json()
-    const { name, description, durationMinutes, price, bufferMinutes, active, category, requiresStaff } = body
+    const { hours } = body as { hours: { dayOfWeek: number; openTime: string; closeTime: string; closed: boolean }[] }
 
-    if (!name || durationMinutes === undefined || price === undefined) {
+    if (!hours || !Array.isArray(hours)) {
       return NextResponse.json(
-        { error: 'Nome, durata e prezzo sono obbligatori' },
+        { error: 'Array di orari non valido' },
         { status: 400 }
       )
     }
@@ -68,28 +59,36 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const service = await db.service.create({
-      data: {
-        name,
-        description: description || null,
-        durationMinutes,
-        price,
-        bufferMinutes: bufferMinutes ?? 10,
-        active: active ?? true,
-        category: category || null,
-        requiresStaff: requiresStaff ?? true,
-        businessId: business.id,
-      },
+    // Delete existing working hours
+    await db.workingHours.deleteMany({
+      where: { businessId: business.id },
     })
 
-    return NextResponse.json(service, { status: 201 })
+    // Create new working hours
+    const workingHours = await db.workingHours.createMany({
+      data: hours.map((wh) => ({
+        dayOfWeek: wh.dayOfWeek,
+        openTime: wh.openTime,
+        closeTime: wh.closeTime,
+        closed: wh.closed ?? false,
+        businessId: business.id,
+      })),
+    })
+
+    // Return the created hours
+    const created = await db.workingHours.findMany({
+      where: { businessId: business.id },
+      orderBy: { dayOfWeek: 'asc' },
+    })
+
+    return NextResponse.json(created)
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Non autenticato') {
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
     }
-    console.error('Errore nella creazione servizio:', error)
+    console.error('Errore nell\'aggiornamento orari:', error)
     return NextResponse.json(
-      { error: 'Errore nella creazione servizio' },
+      { error: 'Errore nell\'aggiornamento degli orari di lavoro' },
       { status: 500 }
     )
   }

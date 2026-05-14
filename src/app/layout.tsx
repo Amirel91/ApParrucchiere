@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BarberShop - Prenota il tuo taglio",
-  description: "App per la prenotazione di appuntamenti dal barbiere. Prenota online il tuo taglio di capelli, barba e altri servizi.",
-  keywords: ["barbiere", "barber", "prenotazione", "taglio capelli", "barba"],
+  title: "GestioPro — Gestisci la tua attività con semplicità",
+  description: "Piattaforma SaaS per la gestione di saloni, barbieri, centri estetici, spa, fitness e molto altro. Prenotazioni, clienti, staff e calendario in un'unica soluzione.",
+  keywords: ["gestionale", "prenotazioni", "salone", "barbiere", "centro estetico", "spa", "fitness", "agenda"],
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },

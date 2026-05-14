@@ -120,3 +120,51 @@ Stage Summary:
 - Deployed to https://ap-parrucchiere.vercel.app
 - GitHub push failed due to expired token (user needs to update token)
 
+
+---
+Task ID: 3a
+Agent: full-stack-developer
+Task: Build all API routes for gestionale
+
+Work Log:
+- Created all 19 API route files covering accounts, auth, business, services, variants, staff, clients, appointments, slots, working-hours, and setup
+- Auth-protected all routes except /api/accounts (register) and /api/auth/login using requireAuth(request)
+- Italian error messages throughout all routes
+- Slots route calculates 15-min availability based on working hours + existing appointments with timezone offset support
+- Setup route seeds demo data: 1 account, 1 business (SALONE), 5 services, 2 variants, 2 staff, 3 clients, 3 appointments, 7 working hours entries
+- Appointments DELETE sets status to CANCELLED instead of hard-deleting
+- Services DELETE checks for existing appointments before allowing deletion
+- All routes validate business ownership via accountId relationship
+- ESLint passes with no errors on all new files
+
+Stage Summary:
+- All API routes created in /home/z/my-project/src/app/api/
+- Routes: accounts, auth/login, auth/logout, auth/me, business, services, services/[id], services/[id]/variants, services/[id]/variants/[vid], staff, staff/[id], staff/[id]/services, clients, clients/[id], appointments, appointments/[id], slots, working-hours, setup
+---
+Task ID: 2-3
+Agent: Main Agent
+Task: Build complete gestionale multi-attività (GestioPro)
+
+Work Log:
+- Analyzed reference sites (hodafare.it, fresha.com) and activity types from screenshot
+- Designed multi-tenant Prisma schema with Account, Business, Service, ServiceVariant, Staff, StaffService, Client, Appointment, WorkingHours, Session models
+- Pushed schema to Neon PostgreSQL with --force-reset
+- Created activity-types.ts with 12 activity categories and helper functions
+- Created auth.ts with session-based token auth
+- Created Zustand store with navigation, session management, sidebar state
+- Built API routes: accounts, auth/login, auth/logout, auth/me, business, services, staff, clients, appointments, slots, working-hours, setup
+- Built UI components: LandingPage, OnboardingWizard, LoginForm, AppShell (with sidebar), DashboardView, ServicesManager (with variants), StaffManager, ClientsManager, CalendarView, SettingsView
+- Fixed compatibility issues between sub-agent components and store
+- Fixed file ownership issues (root-created files)
+- Fixed Vercel project link (was linking to my-project instead of ap-parrucchiere)
+- Force deployed to clear Vercel build cache
+- Seeded demo data successfully
+
+Stage Summary:
+- Complete gestionale SaaS app deployed at https://ap-parrucchiere.vercel.app
+- Demo credentials: demo@gestionale.it / demo123
+- 12 activity types supported
+- Full CRUD for services (with variants), staff (with service assignment), clients
+- Dashboard with stats, today's appointments, quick actions
+- Calendar view, settings view
+- Minimal Apple-style design with amber primary color

@@ -17,28 +17,33 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const services = await db.service.findMany({
+    const staff = await db.staff.findMany({
       where: { businessId: business.id },
       include: {
+        staffServices: {
+          select: { serviceId: true },
+        },
         _count: {
-          select: {
-            variants: true,
-            appointments: true,
-            staffServices: true,
-          },
+          select: { appointments: true },
         },
       },
       orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json(services)
+    const result = staff.map((s) => ({
+      ...s,
+      serviceIds: s.staffServices.map((ss) => ss.serviceId),
+      staffServices: undefined,
+    }))
+
+    return NextResponse.json(result)
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Non autenticato') {
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
     }
-    console.error('Errore nel recupero servizi:', error)
+    console.error('Errore nel recupero personale:', error)
     return NextResponse.json(
-      { error: 'Errore nel recupero servizi' },
+      { error: 'Errore nel recupero personale' },
       { status: 500 }
     )
   }
@@ -48,11 +53,11 @@ export async function POST(request: NextRequest) {
   try {
     const session = await requireAuth(request)
     const body = await request.json()
-    const { name, description, durationMinutes, price, bufferMinutes, active, category, requiresStaff } = body
+    const { name, phone, email, role, color, active } = body
 
-    if (!name || durationMinutes === undefined || price === undefined) {
+    if (!name) {
       return NextResponse.json(
-        { error: 'Nome, durata e prezzo sono obbligatori' },
+        { error: 'Il nome è obbligatorio' },
         { status: 400 }
       )
     }
@@ -68,28 +73,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const service = await db.service.create({
+    const member = await db.staff.create({
       data: {
         name,
-        description: description || null,
-        durationMinutes,
-        price,
-        bufferMinutes: bufferMinutes ?? 10,
+        phone: phone || null,
+        email: email || null,
+        role: role || 'OPERATOR',
+        color: color || '#6366f1',
         active: active ?? true,
-        category: category || null,
-        requiresStaff: requiresStaff ?? true,
         businessId: business.id,
       },
     })
 
-    return NextResponse.json(service, { status: 201 })
+    return NextResponse.json(member, { status: 201 })
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Non autenticato') {
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
     }
-    console.error('Errore nella creazione servizio:', error)
+    console.error('Errore nella creazione personale:', error)
     return NextResponse.json(
-      { error: 'Errore nella creazione servizio' },
+      { error: 'Errore nella creazione personale' },
       { status: 500 }
     )
   }
