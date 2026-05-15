@@ -175,3 +175,26 @@ Stage Summary:
 - New domain: intelligenda.it (subdomains: [slug].intelligenda.it)
 - All 6 files updated, 0 old references remaining
 - Pushed to https://github.com/Amirel91/Intelligenda.git (commit 4f47824)
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: SuperAdmin Dashboard with tenant management
+
+Work Log:
+- Analyzed Prisma schema: all FK relations have onDelete: Cascade, so deleting a Tenant automatically removes BusinessConfig, AdminUser, Service, Booking, BookingService, WorkingHours, ClosedDate
+- Added SuperAdmin auth to auth.ts: createSuperAdminToken(), getSuperAdminSession(), requireSuperAdmin() — separate JWT with 'superadmin_token' cookie, 30-day expiry
+- Created /api/superadmin/login: POST authenticates via SUPERADMIN_PASSWORD env var, sets httpOnly cookie
+- Created /api/superadmin/logout: DELETE clears the superadmin cookie
+- Created /api/superadmin/stats: GET returns totalTenants, activeTenants, suspendedTenants, totalBookings, monthlyRevenue (active x 40€)
+- Created /api/superadmin/tenants: GET lists all tenants with bookingCount, adminCount, hasConfig
+- Created /api/superadmin/tenants/[id]: PATCH toggles active boolean, DELETE cascade-deletes tenant (protected: cannot delete 'default' tenant)
+- Created /superadmin/login/page.tsx: clean login with password input, show/hide toggle
+- Created /superadmin/page.tsx: full dashboard with 3 stat cards (tenants, revenue, bookings) + searchable tenant table with toggle suspend/activate + 2-step delete confirmation + logout button
+
+Stage Summary:
+- 8 files created/modified (+822 lines)
+- SuperAdmin accessible at: intelligenda.it/superadmin
+- Login: intelligenda.it/superadmin/login
+- Requires SUPERADMIN_PASSWORD env var on Vercel
+- Pushed to https://github.com/Amirel91/Intelligenda.git (commit e584092)
