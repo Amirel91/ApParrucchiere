@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const MAIN_DOMAINS = ['localhost:3000', 'localhost', 'intelligenda.it', 'www.intelligenda.it']
 
-export function middleware(request: NextRequest) {
+/**
+ * Proxy handler for Next.js 16 — subdomain-based multi-tenant routing.
+ *
+ * Custom subdomain:  amir.intelligenda.it  → extracts "amir" → sets tenant_slug cookie
+ * Main domains:      intelligenda.it       → clears cookie → landing page
+ * Vercel fallback:   *.vercel.app/t/amir   → sets cookie + redirects to /
+ */
+export function proxy(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
   const domain = hostname.split(':')[0] // Remove port
   const url = request.nextUrl.clone()
@@ -11,7 +18,6 @@ export function middleware(request: NextRequest) {
   const isVercelDomain = domain.endsWith('.vercel.app')
 
   // ============ /t/[slug] — Subdomain fallback for Vercel ============
-  // Handles: ap-parrucchiere.vercel.app/t/test → sets cookie + redirects to /
   if (isVercelDomain && url.pathname.startsWith('/t/')) {
     const slug = url.pathname.split('/')[2]
     if (slug && slug.length > 0) {
@@ -53,9 +59,9 @@ export function middleware(request: NextRequest) {
     return response
   }
 
-  // ============ Custom domain with subdomain (e.g., marco.intelligenda.it) ============
+  // ============ Custom domain with subdomain (e.g., amir.intelligenda.it) ============
   const parts = domain.split('.')
-  const slug = parts[0] // e.g., "marco" from "marco.intelligenda.it"
+  const slug = parts[0] // e.g., "amir" from "amir.intelligenda.it"
 
   if (!slug || slug === 'www') {
     const response = NextResponse.next()
@@ -81,9 +87,9 @@ export function middleware(request: NextRequest) {
   return response
 }
 
+// Route matcher — skip static assets
 export const config = {
   matcher: [
-    // Match all paths except _next/static, _next/image, favicon
     '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 }
