@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSuperAdminToken } from '@/lib/auth'
-import { cookies } from 'next/headers'
 
 const SUPERADMIN_COOKIE = 'superadmin_token'
 
@@ -28,10 +27,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create JWT and set cookie
+    // Create JWT
     const token = await createSuperAdminToken()
-    const cookieStore = await cookies()
-    cookieStore.set(SUPERADMIN_COOKIE, token, {
+
+    // Set cookie ON the response (not via cookies() which modifies a different response object)
+    const response = NextResponse.json({ success: true })
+    response.cookies.set(SUPERADMIN_COOKIE, token, {
       path: '/',
       maxAge: 60 * 60 * 24 * 30, // 30 days
       sameSite: 'lax',
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
     })
 
-    return NextResponse.json({ success: true })
+    return response
   } catch {
     return NextResponse.json({ error: 'Errore durante il login' }, { status: 500 })
   }
