@@ -85,20 +85,37 @@ export default function SuperAdminDashboard() {
       return
     }
 
+    const headers = authHeaders()
+    console.log('[SuperAdmin] Fetching data, token length:', token.length)
+
     try {
       const [statsRes, tenantsRes] = await Promise.all([
-        fetch('/api/superadmin/stats', { headers: authHeaders() }),
-        fetch('/api/superadmin/tenants', { headers: authHeaders() }),
+        fetch('/api/superadmin/stats', { headers }),
+        fetch('/api/superadmin/tenants', { headers }),
       ])
 
+      console.log('[SuperAdmin] Stats status:', statsRes.status, 'Tenants status:', tenantsRes.status)
+
       if (statsRes.status === 401 || tenantsRes.status === 401) {
+        console.log('[SuperAdmin] Unauthorized — clearing token')
         clearSuperAdminToken()
         router.replace('/superadmin/login')
         return
       }
 
-      if (!statsRes.ok || !tenantsRes.ok) {
-        setError('Errore nel caricamento dei dati')
+      if (!statsRes.ok) {
+        const errData = await statsRes.json().catch(() => null)
+        const msg = errData?.error || `HTTP ${statsRes.status}`
+        console.error('[SuperAdmin] Stats error:', msg)
+        setError(`Errore caricamento statistiche: ${msg}`)
+        return
+      }
+
+      if (!tenantsRes.ok) {
+        const errData = await tenantsRes.json().catch(() => null)
+        const msg = errData?.error || `HTTP ${tenantsRes.status}`
+        console.error('[SuperAdmin] Tenants error:', msg)
+        setError(`Errore caricamento tenant: ${msg}`)
         return
       }
 
@@ -106,7 +123,8 @@ export default function SuperAdminDashboard() {
       const tenantsData = await tenantsRes.json()
       setStats(statsData)
       setTenants(tenantsData)
-    } catch {
+    } catch (err) {
+      console.error('[SuperAdmin] Connection error:', err)
       setError('Errore di connessione')
     } finally {
       setLoading(false)
