@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Shield, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
+const SA_TOKEN_KEY = 'superadmin_token'
+
 export default function SuperAdminLoginPage() {
   const router = useRouter()
   const [password, setPassword] = useState('')
@@ -28,10 +30,16 @@ export default function SuperAdminLoginPage() {
         body: JSON.stringify({ password }),
       })
 
+      const data = await res.json()
+
       if (!res.ok) {
-        const data = await res.json()
         setError(data.error || 'Errore durante il login')
         return
+      }
+
+      // Store the JWT token in localStorage
+      if (data.token) {
+        localStorage.setItem(SA_TOKEN_KEY, data.token)
       }
 
       router.push('/superadmin')

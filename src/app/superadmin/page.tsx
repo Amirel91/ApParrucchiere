@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import {
   Shield,
   Building2,
-  Users,
   CreditCard,
   CalendarCheck,
   LogOut,
@@ -19,6 +18,27 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 import Link from 'next/link'
+
+// ==================== AUTH HELPER ====================
+
+const SA_TOKEN_KEY = 'superadmin_token'
+
+function getSuperAdminToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(SA_TOKEN_KEY)
+}
+
+function clearSuperAdminToken() {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(SA_TOKEN_KEY)
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getSuperAdminToken()
+  return token
+    ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    : { 'Content-Type': 'application/json' }
+}
 
 // ==================== TYPES ====================
 
@@ -59,13 +79,20 @@ export default function SuperAdminDashboard() {
   // ==================== FETCH DATA ====================
 
   const fetchData = useCallback(async () => {
+    const token = getSuperAdminToken()
+    if (!token) {
+      router.replace('/superadmin/login')
+      return
+    }
+
     try {
       const [statsRes, tenantsRes] = await Promise.all([
-        fetch('/api/superadmin/stats'),
-        fetch('/api/superadmin/tenants'),
+        fetch('/api/superadmin/stats', { headers: authHeaders() }),
+        fetch('/api/superadmin/tenants', { headers: authHeaders() }),
       ])
 
       if (statsRes.status === 401 || tenantsRes.status === 401) {
+        clearSuperAdminToken()
         router.replace('/superadmin/login')
         return
       }
@@ -97,7 +124,7 @@ export default function SuperAdminDashboard() {
     try {
       const res = await fetch(`/api/superadmin/tenants/${tenant.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ active: !tenant.active }),
       })
       if (!res.ok) {
@@ -126,7 +153,10 @@ export default function SuperAdminDashboard() {
     }
     setActionLoading(tenant.id)
     try {
-      const res = await fetch(`/api/superadmin/tenants/${tenant.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/superadmin/tenants/${tenant.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      })
       if (!res.ok) {
         const data = await res.json()
         alert(data.error || 'Errore')
@@ -148,8 +178,8 @@ export default function SuperAdminDashboard() {
     }
   }
 
-  const handleLogout = async () => {
-    await fetch('/api/superadmin/logout', { method: 'DELETE' })
+  const handleLogout = () => {
+    clearSuperAdminToken()
     router.replace('/superadmin/login')
   }
 

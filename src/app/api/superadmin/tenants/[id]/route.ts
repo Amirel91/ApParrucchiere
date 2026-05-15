@@ -11,7 +11,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireSuperAdmin()
+    await requireSuperAdmin(request)
     await ensureDbSchema()
 
     const { id } = await params
@@ -43,7 +43,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
     console.error('PATCH /api/superadmin/tenants/[id] error:', error)
-    return NextResponse.json({ error: 'Errore nell\'aggiornamento del tenant' }, { status: 500 })
+    return NextResponse.json({ error: "Errore nell'aggiornamento del tenant" }, { status: 500 })
   }
 }
 
@@ -52,11 +52,11 @@ export async function PATCH(
  * Permanently delete a tenant and all related data (cascade).
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireSuperAdmin()
+    await requireSuperAdmin(request)
     await ensureDbSchema()
 
     const { id } = await params
@@ -76,8 +76,6 @@ export async function DELETE(
       )
     }
 
-    // Delete the tenant — cascade will remove BusinessConfig, AdminUser,
-    // Service, Booking, BookingService, WorkingHours, ClosedDate
     await db.tenant.delete({ where: { id } })
 
     return NextResponse.json({
@@ -93,6 +91,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
     console.error('DELETE /api/superadmin/tenants/[id] error:', error)
-    return NextResponse.json({ error: 'Errore nell\'eliminazione del tenant' }, { status: 500 })
+    return NextResponse.json({ error: "Errore nell'eliminazione del tenant" }, { status: 500 })
   }
 }

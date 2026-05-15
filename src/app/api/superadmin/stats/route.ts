@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
 import { requireSuperAdmin } from '@/lib/auth'
+import { NextRequest } from 'next/server'
 
 /**
  * GET /api/superadmin/stats
  * Returns platform-wide macro statistics.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    await requireSuperAdmin()
+    await requireSuperAdmin(request)
     await ensureDbSchema()
 
     const [
@@ -23,7 +24,7 @@ export async function GET() {
       db.tenant.count({ where: { active: false } }),
     ])
 
-    const monthlyRevenue = activeTenants * 40 // 40€ per active tenant
+    const monthlyRevenue = activeTenants * 40
 
     return NextResponse.json({
       totalTenants,

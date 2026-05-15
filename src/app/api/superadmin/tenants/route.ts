@@ -1,14 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
 import { requireSuperAdmin } from '@/lib/auth'
+import { NextRequest } from 'next/server'
 
 /**
  * GET /api/superadmin/tenants
  * Lists all tenants with their booking count.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    await requireSuperAdmin()
+    await requireSuperAdmin(request)
     await ensureDbSchema()
 
     const tenants = await db.tenant.findMany({
@@ -28,7 +29,6 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     })
 
-    // Map to a clean response format
     const mapped = tenants.map(t => ({
       id: t.id,
       slug: t.slug,

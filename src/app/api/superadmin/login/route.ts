@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSuperAdminToken } from '@/lib/auth'
 
-const SUPERADMIN_COOKIE = 'superadmin_token'
-
 /**
  * POST /api/superadmin/login
- * Authenticates the platform owner with a password set via env var.
+ * Authenticates the platform owner. Returns the JWT token in the response body.
+ * Client stores it in localStorage and sends it as Bearer token on each request.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -27,20 +26,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create JWT
+    // Create JWT and return it in the response body
     const token = await createSuperAdminToken()
-
-    // Set cookie ON the response (not via cookies() which modifies a different response object)
-    const response = NextResponse.json({ success: true })
-    response.cookies.set(SUPERADMIN_COOKIE, token, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      httpOnly: true,
-    })
-
-    return response
+    return NextResponse.json({ success: true, token })
   } catch {
     return NextResponse.json({ error: 'Errore durante il login' }, { status: 500 })
   }

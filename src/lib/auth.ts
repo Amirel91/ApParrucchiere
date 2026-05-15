@@ -49,10 +49,9 @@ export async function requireAdmin() {
 }
 
 // ============ SUPERADMIN AUTH ============
-// Separate cookie and JWT for platform owner access.
-// Password is set via SUPERADMIN_PASSWORD env var.
+// Uses Bearer token approach (no cookies) to avoid conflicts
+// with proxy.ts cookie manipulation on the main domain.
 
-const SUPERADMIN_COOKIE = 'superadmin_token'
 const superadminSecret = new TextEncoder().encode(
   process.env.SUPERADMIN_JWT_SECRET || process.env.JWT_SECRET || 'fallback-secret-change-me'
 )
@@ -65,9 +64,11 @@ export async function createSuperAdminToken(): Promise<string> {
     .sign(superadminSecret)
 }
 
-export async function getSuperAdminSession(): Promise<boolean> {
-  const cookieStore = await cookies()
-  const token = cookieStore.get(SUPERADMIN_COOKIE)?.value
+/**
+ * Verify superadmin token from a Bearer Authorization header.
+ * Returns true if valid, false otherwise.
+ */
+export async function verifySuperAdminToken(token: string): Promise<boolean> {
   if (!token) return false
   try {
     await jwtVerify(token, superadminSecret)
@@ -77,8 +78,18 @@ export async function getSuperAdminSession(): Promise<boolean> {
   }
 }
 
-export async function requireSuperAdmin(): Promise<void> {
-  const valid = await getSuperAdminSession()
+/**
+ * Extract and verify superadmin token from a NextRequest.
+ * Checks Authorization: Bearer <token> header.
+ */
+export async function requireSuperAdmin(request: Request): Promise<void> {
+  const authHeader = request.headers.get('authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    throw new Error('SuperAdminUnauthorized')
+  }
+
+  const token = authHeader.slice(7)
+  const valid = await verifySuperAdminToken(token)
   if (!valid) {
     throw new Error('SuperAdminUnauthorized')
   }
