@@ -6,24 +6,41 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🌱 Seeding database...')
 
-  // Create admin user
+  // Create default tenant
+  const tenant = await prisma.tenant.upsert({
+    where: { slug: 'default' },
+    update: {},
+    create: {
+      slug: 'default',
+      businessName: 'Studio Bellezza',
+      ownerName: '',
+      ownerEmail: '',
+    },
+  })
+  console.log(`✅ Tenant created: ${tenant.slug}`)
+
+  // Create admin user linked to tenant
   const hashedPw = await hashPassword('admin123')
   const admin = await prisma.adminUser.upsert({
-    where: { username: 'admin' },
+    where: {
+      tenantId_username: { tenantId: tenant.id, username: 'admin' },
+    },
     update: {},
     create: {
       username: 'admin',
       password: hashedPw,
+      tenantId: tenant.id,
     },
   })
   console.log(`✅ Admin user created: ${admin.username}`)
 
-  // Create business config
+  // Create business config linked to tenant
   const config = await prisma.businessConfig.upsert({
     where: { id: 'default-config' },
     update: {},
     create: {
       id: 'default-config',
+      tenantId: tenant.id,
       shopName: 'Studio Bellezza',
       shopDescription: 'Il tuo studio di bellezza di fiducia. Prenota il tuo appuntamento in pochi clic.',
       shopPhone: '+39 02 1234567',

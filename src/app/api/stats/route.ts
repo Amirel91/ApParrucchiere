@@ -1,16 +1,14 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { requireTenantConfig } from '@/lib/tenant'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureDbSchema()
     await requireAdmin()
 
-    const config = await db.businessConfig.findFirst()
-    if (!config) {
-      return NextResponse.json({ bookingsCount: 0, revenue: 0, totalBookings: 0, totalRevenue: 0, topServices: [] })
-    }
+    const config = await requireTenantConfig(request)
 
     const now = new Date()
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -57,6 +55,9 @@ export async function GET() {
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+    }
+    if (error instanceof Error && error.message === 'TenantNotFound') {
+      return NextResponse.json({ error: 'Negozio non trovato' }, { status: 404 })
     }
     return NextResponse.json({ error: 'Errore' }, { status: 500 })
   }

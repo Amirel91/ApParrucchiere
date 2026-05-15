@@ -71,3 +71,84 @@ Stage Summary:
 - 8 AI-generated gallery images (1344x768 each)
 - All pushed to GitHub: https://github.com/Amirel91/ApParrucchiere.git
 
+---
+Task ID: 3
+Agent: fullstack-developer
+Task: Multi-tenant SaaS backend foundation
+
+Work Log:
+- Updated prisma/schema.prisma: Added Tenant model (id, slug, businessName, ownerName, ownerEmail, active, timestamps), added tenantId to BusinessConfig with @unique + onDelete:Cascade, updated AdminUser with tenantId + @@unique([tenantId, username])
+- Ran npx prisma generate (Prisma Client v6.19.3 regenerated successfully)
+- Updated src/lib/db.ts: Added 11 migration SQL statements to MIGRATION_SQL array — Tenant table creation, unique indexes, ALTER TABLE ADD COLUMN for tenantId on BusinessConfig/AdminUser, data migration (default tenant creation + linking existing data), foreign key constraints (BusinessConfig_tenantId_fkey, AdminUser_tenantId_fkey), unique indexes (BusinessConfig_tenantId_key, AdminUser_tenantId_username_key)
+- Created src/lib/tenant.ts: Helper functions — getTenantSlugFromRequest(), getTenantSlugFromCookies(), isMainDomain(), getTenantBySlug(), getTenantConfig(), getTenantConfigFromCookies(), requireTenantConfig()
+- Created src/middleware.ts: Subdomain-based tenant resolution — extracts slug from subdomain (e.g., "marco" from marco.segretariapp.it), sets tenant_slug cookie, clears cookie on main domain
+- Updated src/lib/auth.ts: createToken() now accepts tenantId in payload, verifyToken returns typed payload with tenantId, requireAdmin() returns typed session with tenantId
+- Updated src/app/api/auth/login/route.ts: Login now resolves tenant from cookie, finds admin by username+tenantId (not just username), includes tenantId in JWT
+- Updated src/lib/slot-algorithm.ts: Added optional configId parameter to getAvailableSlots(), getDaysAvailability(), isSlotAvailable(), isDateClosed() — uses findFirst({where: configId ? {id: configId} : undefined}) instead of unqualified findFirst()
+- Updated src/app/api/config/route.ts: GET uses getTenantConfig(request), PUT uses requireTenantConfig(request)
+- Updated src/app/api/services/route.ts: GET uses getTenantConfig(request), POST uses requireTenantConfig(request), removed fragile authHeader.includes('admin_token') check
+- Updated src/app/api/services/[id]/route.ts: PUT/DELETE verify service.configId === config.id
+- Updated src/app/api/bookings/route.ts: GET filters by configId: config.id, POST uses getTenantConfig for configId, passes config.id to isSlotAvailable, scopes service lookup to config
+- Updated src/app/api/bookings/[id]/route.ts: GET/PATCH/DELETE verify booking.configId === config.id
+- Updated src/app/api/slots/route.ts: Gets tenant config, passes config.id to getAvailableSlots
+- Updated src/app/api/closed-dates/route.ts: GET/POST/DELETE use getTenantConfig/requireTenantConfig, DELETE verifies ownership
+- Updated src/app/api/working-hours/route.ts: GET uses getTenantConfig(request), PUT uses requireTenantConfig(request)
+- Updated src/app/api/stats/route.ts: GET uses requireTenantConfig(request)
+- Fixed prisma/seed.ts: Creates default tenant, links admin user and business config to tenant
+- TypeScript check: npx tsc --noEmit passes with 0 errors
+
+Stage Summary:
+- 15 files modified/created for multi-tenancy backend foundation
+- Zero UI/CSS changes (backend only)
+- Slot algorithm core logic untouched — only accepts optional configId parameter
+- All Zod validation schemas preserved
+- Auto-migration via ensureDbSchema() pattern with idempotent SQL
+- Tenant isolation: every API route resolves tenant from subdomain cookie, admin scoped to own tenant
+- Backward compatible: data migration creates default tenant and links existing data
+
+---
+Task ID: 4
+Agent: fullstack-developer
+Task: Landing page, registration API, tenant-aware public pages, localStorage Ricordami
+
+Work Log:
+- Created src/app/api/register/route.ts: GET checks slug availability (GET /api/register?slug=xxx), POST creates tenant + businessConfig + adminUser + default working hours (Mon-Sat 9-18, Sat 9-13, Sun closed). Uses Zod validation for all fields (fullName, businessName, slug, email, password).
+- Created src/app/landing/page.tsx: Full sales landing page as client component with 4 sections — Hero (CTA to registration), Feature cards (3 benefits: smart algorithm, no registration for customers, full control), Pricing (transparent 40€/month), Registration form (with live slug availability check, debounced, icon-prefixed inputs, full validation, success redirect to admin panel).
+- Updated src/app/page.tsx: Root homepage now checks /api/config response — if !res.ok or fetch fails, redirects to /landing via window.location.href. Tenant subdomains continue to show normal shop homepage.
+- Updated src/app/prenota/page.tsx: Added localStorage "Ricordami" feature — rememberMe state, STORAGE_KEY='booking_remember', loads saved data on mount (customerName, customerSurname, customerPhone), saves to localStorage on successful booking if checked, clears if unchecked. Checkbox added after email field in Step 3.
+- Updated src/app/admin/prenota/page.tsx: Same localStorage "Ricordami" feature with STORAGE_KEY='admin_booking_remember' to separate admin booking memory from client booking memory.
+- Updated src/app/admin/login/page.tsx: Fetches /api/config on mount to get shop name. Displays "Accedi a [ShopName]" subtitle. If config fetch fails (no tenant context), shows error state "Nessun negozio selezionato" with link back to site.
+- TypeScript check: npx tsc --noEmit passes with 0 errors.
+
+Stage Summary:
+- 2 files created (register API, landing page), 4 files modified (homepage, prenota, admin/prenota, admin/login)
+- Registration flow: landing → form → POST /api/register → creates full tenant with default config → success screen with link to admin
+- Slug availability checked in real-time with 400ms debounce
+- Public pages are now tenant-aware: redirect to /landing when no tenant context
+- Admin login shows shop name, blocks login without tenant context
+- localStorage "Ricordami" saves customer data between bookings (separate keys for public vs admin booking)
+
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Fix /t/[slug] tenant routing on Vercel (server error)
+
+Work Log:
+- Diagnosed two bugs causing server error on /t/test:
+  1. Server component cookies().set() + redirect() conflict: redirect() throws internally, preventing cookie from being saved
+  2. Middleware cleared tenant_slug cookie on every non-/t/ request on Vercel domains, so even if cookie was set, it was immediately cleared on redirect to /
+- Rewrote src/middleware.ts:
+  - /t/[slug] on Vercel domains now handled entirely in middleware: sets cookie + redirects to / in a single response
+  - On Vercel domains, middleware no longer clears tenant_slug cookie (lets existing cookie persist)
+  - Homepage (page.tsx) handles no-tenant case by redirecting to /landing automatically
+- Updated src/app/t/[slug]/page.tsx:
+  - Converted from server component to client component fallback
+  - Uses useEffect + document.cookie + window.location.replace as safety net
+- Pushed commit a276a81 to GitHub
+
+Stage Summary:
+- Fixed /t/[slug] route: ap-parrucchiere.vercel.app/t/test now works correctly
+- Flow: /t/test → middleware sets cookie + 302 redirect → / (cookie preserved) → page.tsx fetches /api/config → tenant found → shows homepage
+- To switch tenants on Vercel: visit /t/[other-slug]
+- No cookie = /api/config returns 404 = page.tsx redirects to /landing

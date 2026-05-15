@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Lock, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
@@ -12,6 +12,28 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [shopName, setShopName] = useState<string | null>(null)
+  const [shopError, setShopError] = useState(false)
+
+  // Fetch shop name from config
+  useEffect(() => {
+    fetch('/api/config')
+      .then(res => {
+        if (!res.ok) {
+          setShopError(true)
+          return null
+        }
+        return res.json()
+      })
+      .then(data => {
+        if (data && typeof data === 'object' && 'shopName' in data) {
+          setShopName(data.shopName as string)
+        } else {
+          setShopError(true)
+        }
+      })
+      .catch(() => setShopError(true))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,6 +60,23 @@ export default function AdminLoginPage() {
     }
   }
 
+  if (shopError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 px-6">
+        <div className="w-full max-w-sm text-center">
+          <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center">
+            <Lock className="w-7 h-7 text-red-500" />
+          </div>
+          <h1 className="text-2xl font-semibold text-stone-900 mb-2">Errore</h1>
+          <p className="text-stone-500 text-sm mb-6">Nessun negozio selezionato.</p>
+          <Link href="/" className="text-sm text-stone-400 hover:text-stone-600 transition-colors">
+            ← Torna al sito
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-stone-50 px-6">
       <div className="w-full max-w-sm">
@@ -46,7 +85,13 @@ export default function AdminLoginPage() {
             <Lock className="w-7 h-7 text-white" />
           </div>
           <h1 className="text-2xl font-semibold text-stone-900">Area Admin</h1>
-          <p className="text-stone-500 text-sm mt-1">Accedi al pannello di gestione</p>
+          <p className="text-stone-500 text-sm mt-1">
+            {shopName ? (
+              <>Accedi a <span className="font-medium text-stone-700">{shopName}</span></>
+            ) : (
+              'Caricamento...'
+            )}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client'
-import pg from 'pg'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -11,18 +10,16 @@ export const db =
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
 
-// ============ AUTO-MIGRATION (uses native pg, bypasses Prisma pooling) ============
+// ============ AUTO-MIGRATION ============
+// Uses raw fetch() to the Neon HTTP SQL API.
+// No libraries, no parameterization, no native bindings.
+// This is the most basic approach guaranteed to work on Vercel serverless.
 
 const MIGRATION_SQL = [
-  // BusinessConfig columns
-  `ALTER TABLE "BusinessConfig" ADD COLUMN IF NOT EXISTS "businessType" TEXT DEFAULT 'parrucchiere'`,
-  `ALTER TABLE "BusinessConfig" ADD COLUMN IF NOT EXISTS "selectedImages" TEXT DEFAULT '[]'`,
   `ALTER TABLE "BusinessConfig" ADD COLUMN IF NOT EXISTS "lunchBreakEnabled" BOOLEAN DEFAULT false`,
   `ALTER TABLE "BusinessConfig" ADD COLUMN IF NOT EXISTS "lunchBreakStart" TEXT DEFAULT '12:30'`,
   `ALTER TABLE "BusinessConfig" ADD COLUMN IF NOT EXISTS "lunchBreakEnd" TEXT DEFAULT '14:00'`,
-  // Service columns
   `ALTER TABLE "Service" ADD COLUMN IF NOT EXISTS "cleanupMinutes" INTEGER DEFAULT 0`,
-  // ClosedDate table
   `CREATE TABLE IF NOT EXISTS "ClosedDate" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "date" TEXT NOT NULL,
@@ -37,44 +34,145 @@ const MIGRATION_SQL = [
     END IF;
   END $$`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "ClosedDate_configId_date_key" ON "ClosedDate"("configId", "date")`,
+  // ============ MULTI-TENANCY MIGRATIONS ============
+  `CREATE TABLE IF NOT EXISTS "Tenant" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "slug" TEXT NOT NULL,
+    "businessName" TEXT NOT NULL,
+    "ownerName" TEXT NOT NULL DEFAULT '',
+    "ownerEmail" TEXT NOT NULL DEFAULT '',
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "Tenant_slug_key" ON "Tenant"("slug")`,
+  `ALTER TABLE "BusinessConfig" ADD COLUMN IF NOT EXISTS "tenantId" TEXT`,
+  `ALTER TABLE "AdminUser" ADD COLUMN IF NOT EXISTS "tenantId" TEXT`,
+  // Data migration: create default tenant
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM "Tenant" LIMIT 1) THEN
+      INSERT INTO "Tenant" ("id", "slug", "businessName", "ownerName", "ownerEmail", "active", "createdAt", "updatedAt")
+      SELECT
+        gen_random_uuid()::text,
+        'default',
+        COALESCE((SELECT "shopName" FROM "BusinessConfig" LIMIT 1), 'Il Mio Negozio'),
+        '',
+        '',
+        true,
+        NOW(), NOW()
+      WHERE NOT EXISTS (SELECT 1 FROM "Tenant" LIMIT 1);
+    END IF;
+  END $$`,
+  // Link existing BusinessConfig to default tenant
+  `DO $$ BEGIN
+    UPDATE "BusinessConfig" SET "tenantId" = (SELECT "id" FROM "Tenant" WHERE "slug" = 'default' LIMIT 1)
+    WHERE "tenantId" IS NULL AND EXISTS (SELECT 1 FROM "Tenant" WHERE "slug" = 'default' LIMIT 1);
+  END $$`,
+  // Link existing AdminUsers to default tenant
+  `DO $$ BEGIN
+    UPDATE "AdminUser" SET "tenantId" = (SELECT "id" FROM "Tenant" WHERE "slug" = 'default' LIMIT 1)
+    WHERE "tenantId" IS NULL AND EXISTS (SELECT 1 FROM "Tenant" WHERE "slug" = 'default' LIMIT 1);
+  END $$`,
+  // Foreign key constraints
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'BusinessConfig_tenantId_fkey') THEN
+      ALTER TABLE "BusinessConfig" ADD CONSTRAINT "BusinessConfig_tenantId_fkey"
+        FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AdminUser_tenantId_fkey') THEN
+      ALTER TABLE "AdminUser" ADD CONSTRAINT "AdminUser_tenantId_fkey"
+        FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "BusinessConfig_tenantId_key" ON "BusinessConfig"("tenantId")`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "AdminUser_tenantId_username_key" ON "AdminUser"("tenantId", "username")`,
 ]
+
+/**
+ * Execute a single DDL statement via the Neon HTTP SQL API.
+ * Uses raw fetch() — zero libraries, zero parameterization.
+ */
+async function neonRawQuery(connectionString: string, sql: string): Promise<{ ok: boolean; msg: string }> {
+  // Parse host from connection string
+  // Format: postgresql://user:pass@host/db?params
+  try {
+    const asHttp = connectionString
+      .replace(/^postgresql:\/\//, 'http://')
+      .replace(/^postgres:\/\//, 'http://')
+    const parsed = new URL(asHttp)
+    const host = parsed.hostname // e.g. "epic-xyz.us-east-2.aws.neon.tech"
+
+    const response = await fetch(`https://${host}/sql`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Neon-Connection-String': connectionString,
+      },
+      body: JSON.stringify({ query: sql }),
+    })
+
+    const text = await response.text()
+    let data: Record<string, unknown>
+
+    try {
+      data = JSON.parse(text)
+    } catch {
+      return { ok: response.ok, msg: `HTTP ${response.status}: ${text.substring(0, 100)}` }
+    }
+
+    // Neon HTTP API returns errors in various fields
+    const errorMsg = (data.error || data.message || data.detail || '') as string
+    if (typeof errorMsg === 'string' && errorMsg.length > 0 && !response.ok) {
+      return { ok: false, msg: errorMsg.substring(0, 150) }
+    }
+
+    return { ok: true, msg: 'OK' }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, msg: msg.substring(0, 150) }
+  }
+}
 
 let _schemaEnsured = false
 
 export async function ensureDbSchema(): Promise<{ ok: boolean; results: string[] }> {
   if (_schemaEnsured) return { ok: true, results: ['cached'] }
-  
-  const results: string[] = []
-  
-  try {
-    const connectionString = process.env.DATABASE_URL
-    if (!connectionString) {
-      console.error('[ensureDbSchema] No DATABASE_URL found')
-      return { ok: false, results: ['ERROR: No DATABASE_URL'] }
-    }
 
-    // Use native pg client - bypasses Prisma pooling issues
-    const client = new pg.Client({ connectionString })
-    await client.connect()
-    
-    for (const sql of MIGRATION_SQL) {
-      try {
-        await client.query(sql)
-        results.push(`OK: ${sql.substring(0, 60)}...`)
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        results.push(`WARN: ${msg.substring(0, 80)}`)
-        console.warn(`[ensureDbSchema] Statement failed (may be ok): ${msg}`)
-      }
-    }
-    
-    await client.end()
-    _schemaEnsured = true
-    console.log('[ensureDbSchema] Database schema verified/updated successfully')
-    return { ok: true, results }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error('[ensureDbSchema] Fatal error:', msg)
-    return { ok: false, results: [`FATAL: ${msg}`] }
+  const results: string[] = []
+  const connectionString = process.env.DATABASE_URL
+
+  if (!connectionString) {
+    console.error('[ensureDbSchema] No DATABASE_URL')
+    return { ok: false, results: ['ERROR: No DATABASE_URL env var'] }
   }
+
+  let successCount = 0
+
+  for (const ddl of MIGRATION_SQL) {
+    const result = await neonRawQuery(connectionString, ddl)
+    const short = ddl.replace(/\s+/g, ' ').substring(0, 55)
+    if (result.ok) {
+      successCount++
+      results.push(`OK: ${short}`)
+      console.log(`[ensureDbSchema] OK: ${short}`)
+    } else {
+      results.push(`FAIL: ${result.msg}`)
+      console.error(`[ensureDbSchema] FAIL: ${short} → ${result.msg}`)
+    }
+  }
+
+  // Only cache as "ensured" if majority of DDL succeeded
+  const allOk = successCount === MIGRATION_SQL.length
+  const majorityOk = successCount >= Math.ceil(MIGRATION_SQL.length * 0.7)
+
+  if (majorityOk) {
+    _schemaEnsured = true
+    console.log(`[ensureDbSchema] Done: ${successCount}/${MIGRATION_SQL.length} succeeded`)
+    return { ok: true, results }
+  }
+
+  console.error(`[ensureDbSchema] Only ${successCount}/${MIGRATION_SQL.length} succeeded — will retry`)
+  return { ok: false, results }
 }

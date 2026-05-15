@@ -2,23 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { configSchema } from '@/lib/validations'
+import { getTenantConfig, requireTenantConfig } from '@/lib/tenant'
 
 // GET /api/config - Public: get business config (for client homepage)
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureDbSchema()
-    let config = await db.businessConfig.findFirst()
-    
-    // Auto-create default if none exists
+    const config = await getTenantConfig(request)
+
     if (!config) {
-      config = await db.businessConfig.create({
-        data: {
-          shopName: 'Il Mio Negozio',
-          shopDescription: '',
-          businessType: 'parrucchiere',
-          selectedImages: '[]',
-        },
-      })
+      return NextResponse.json({ error: 'Negozio non trovato' }, { status: 404 })
     }
 
     return NextResponse.json(config)
@@ -46,10 +39,9 @@ export async function PUT(request: NextRequest) {
 
     // Step 3: Parse and validate
     const body = await request.json()
-    
-    // Log what we received for debugging
+
     console.log('PUT /api/config: received fields', Object.keys(body))
-    
+
     let data: Record<string, unknown>
     try {
       data = configSchema.parse(body) as Record<string, unknown>
@@ -62,22 +54,21 @@ export async function PUT(request: NextRequest) {
       throw zodErr
     }
 
-    // Step 4: Update or create
-    let config = await db.businessConfig.findFirst()
+    // Step 4: Update tenant's config
+    const config = await requireTenantConfig(request)
 
-    if (!config) {
-      config = await db.businessConfig.create({ data })
-    } else {
-      config = await db.businessConfig.update({
-        where: { id: config.id },
-        data,
-      })
-    }
+    const updated = await db.businessConfig.update({
+      where: { id: config.id },
+      data,
+    })
 
-    return NextResponse.json(config)
+    return NextResponse.json(updated)
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+    }
+    if (error instanceof Error && error.message === 'TenantNotFound') {
+      return NextResponse.json({ error: 'Negozio non trovato' }, { status: 404 })
     }
     console.error('PUT /api/config error:', error)
     return NextResponse.json(

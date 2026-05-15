@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { closedDateSchema } from '@/lib/validations'
+import { getTenantConfig, requireTenantConfig } from '@/lib/tenant'
 
 // GET /api/closed-dates - Public: get all closed dates
 // Supports ?from=YYYY-MM-DD&to=YYYY-MM-DD for filtering
@@ -12,9 +13,7 @@ export async function GET(request: NextRequest) {
     const from = searchParams.get('from')
     const to = searchParams.get('to')
 
-    const config = await db.businessConfig.findFirst({
-      select: { id: true },
-    })
+    const config = await getTenantConfig(request)
 
     if (!config) {
       return NextResponse.json([])
@@ -50,13 +49,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = closedDateSchema.parse(body)
 
-    const config = await db.businessConfig.findFirst({
-      select: { id: true },
-    })
-
-    if (!config) {
-      return NextResponse.json({ error: 'Configurazione non trovata' }, { status: 404 })
-    }
+    const config = await requireTenantConfig(request)
 
     // Check if already exists
     const existing = await db.closedDate.findUnique({
@@ -85,6 +78,9 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
+    if (error instanceof Error && error.message === 'TenantNotFound') {
+      return NextResponse.json({ error: 'Negozio non trovato' }, { status: 404 })
+    }
     if (error && typeof error === 'object' && 'issues' in error) {
       return NextResponse.json({ error: 'Dati non validi' }, { status: 400 })
     }
@@ -108,17 +104,15 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (id) {
-      await db.closedDate.delete({
-        where: { id },
-      })
-    } else {
-      const config = await db.businessConfig.findFirst({
-        select: { id: true },
-      })
-      if (!config) {
-        return NextResponse.json({ error: 'Configurazione non trovata' }, { status: 404 })
+      // Verify the closed date belongs to the current tenant
+      const config = await requireTenantConfig(request)
+      const closedDate = await db.closedDate.findUnique({ where: { id } })
+      if (!closedDate || closedDate.configId !== config.id) {
+        return NextResponse.json({ error: 'Data chiusa non trovata' }, { status: 404 })
       }
-
+      await db.closedDate.delete({ where: { id } })
+    } else {
+      const config = await requireTenantConfig(request)
       await db.closedDate.deleteMany({
         where: {
           configId: config.id,
@@ -131,6 +125,9 @@ export async function DELETE(request: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+    }
+    if (error instanceof Error && error.message === 'TenantNotFound') {
+      return NextResponse.json({ error: 'Negozio non trovato' }, { status: 404 })
     }
     console.error('DELETE /api/closed-dates error:', error)
     return NextResponse.json({ error: 'Errore nella rimozione della data chiusa' }, { status: 500 })

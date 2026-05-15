@@ -1,0 +1,104 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db, ensureDbSchema } from '@/lib/db'
+import { hashPassword } from '@/lib/auth'
+import { z } from 'zod'
+
+const registerSchema = z.object({
+  fullName: z.string().min(2, 'Nome obbligatorio'),
+  businessName: z.string().min(2, 'Nome attività obbligatorio'),
+  slug: z
+    .string()
+    .min(3, 'Minimo 3 caratteri')
+    .max(30, 'Massimo 30 caratteri')
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Solo lettere minuscole, numeri e trattini'),
+  email: z.string().email('Email non valida'),
+  password: z.string().min(6, 'Minimo 6 caratteri'),
+})
+
+// GET /api/register?slug=xxx - Check slug availability
+export async function GET(request: NextRequest) {
+  const slug = new URL(request.url).searchParams.get('slug')
+  if (!slug || !registerSchema.shape.slug.safeParse(slug).success) {
+    return NextResponse.json({ available: false, error: 'Slug non valido' })
+  }
+
+  await ensureDbSchema()
+  const existing = await db.tenant.findUnique({ where: { slug } })
+  return NextResponse.json({ available: !existing })
+}
+
+// POST /api/register - Create new tenant + admin + config
+export async function POST(request: NextRequest) {
+  try {
+    await ensureDbSchema()
+    const body = await request.json()
+    const data = registerSchema.parse(body)
+
+    // Check slug availability
+    const existing = await db.tenant.findUnique({ where: { slug: data.slug } })
+    if (existing) {
+      return NextResponse.json(
+        { error: 'Questo indirizzo è già occupato. Scegline un altro.' },
+        { status: 409 }
+      )
+    }
+
+    // Create tenant
+    const tenant = await db.tenant.create({
+      data: {
+        slug: data.slug,
+        businessName: data.businessName,
+        ownerName: data.fullName,
+        ownerEmail: data.email,
+        active: true,
+      },
+    })
+
+    // Create business config for this tenant
+    const config = await db.businessConfig.create({
+      data: {
+        tenantId: tenant.id,
+        shopName: data.businessName,
+        shopDescription: '',
+      },
+    })
+
+    // Create admin user for this tenant
+    const hashedPassword = await hashPassword(data.password)
+    await db.adminUser.create({
+      data: {
+        username: data.slug, // Use slug as initial username
+        password: hashedPassword,
+        tenantId: tenant.id,
+      },
+    })
+
+    // Create default working hours (Mon-Fri 9-18, Sat 9-13, Sun closed)
+    for (let day = 1; day <= 7; day++) {
+      await db.workingHours.create({
+        data: {
+          configId: config.id,
+          dayOfWeek: day,
+          openTime: day <= 6 ? '09:00' : '09:00',
+          closeTime: day <= 5 ? '18:00' : '13:00',
+          closed: day === 7,
+        },
+      })
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        slug: data.slug,
+        url: `https://${data.slug}.intelligenda.it`,
+      },
+      { status: 201 }
+    )
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'issues' in error) {
+      return NextResponse.json({ error: 'Dati non validi', details: error }, { status: 400 })
+    }
+    console.error('POST /api/register error:', error)
+    return NextResponse.json({ error: 'Errore nella registrazione' }, { status: 500 })
+  }
+}

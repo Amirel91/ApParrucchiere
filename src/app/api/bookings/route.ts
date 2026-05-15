@@ -3,19 +3,22 @@ import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { bookingSchema } from '@/lib/validations'
 import { isSlotAvailable } from '@/lib/slot-algorithm'
+import { getTenantConfig, requireTenantConfig } from '@/lib/tenant'
 
 // GET /api/bookings - Admin: get all bookings
 export async function GET(request: NextRequest) {
   try {
     await ensureDbSchema()
     await requireAdmin()
-    
+
+    const config = await requireTenantConfig(request)
+
     const { searchParams } = new URL(request.url)
     const dateFrom = searchParams.get('from')
     const dateTo = searchParams.get('to')
     const status = searchParams.get('status')
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { configId: config.id }
     if (dateFrom && dateTo) {
       where.startTime = {
         gte: new Date(dateFrom),
@@ -43,6 +46,9 @@ export async function GET(request: NextRequest) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
+    if (error instanceof Error && error.message === 'TenantNotFound') {
+      return NextResponse.json({ error: 'Negozio non trovato' }, { status: 404 })
+    }
     console.error('GET /api/bookings error:', error)
     return NextResponse.json({ error: 'Errore nel caricamento delle prenotazioni' }, { status: 500 })
   }
@@ -55,9 +61,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = bookingSchema.parse(body)
 
+    const config = await getTenantConfig(request)
+    if (!config) {
+      return NextResponse.json({ error: 'Negozio non trovato' }, { status: 404 })
+    }
+
     // Get services to calculate total price and duration
     const services = await db.service.findMany({
-      where: { id: { in: data.serviceIds } },
+      where: { id: { in: data.serviceIds }, configId: config.id },
     })
 
     if (services.length !== data.serviceIds.length) {
@@ -68,17 +79,12 @@ export async function POST(request: NextRequest) {
     const totalPrice = services.reduce((sum, s) => sum + s.price, 0)
 
     // Double-check slot availability (prevent race conditions)
-    const available = await isSlotAvailable(data.date, data.time, totalDuration)
+    const available = await isSlotAvailable(data.date, data.time, totalDuration, config.id)
     if (!available) {
       return NextResponse.json(
         { error: 'Lo slot selezionato non è più disponibile. Si prega di selezionarne un altro.' },
         { status: 409 }
       )
-    }
-
-    const config = await db.businessConfig.findFirst()
-    if (!config) {
-      return NextResponse.json({ error: 'Configurazione non trovata' }, { status: 404 })
     }
 
     const startTime = new Date(`${data.date}T${data.time}:00`)

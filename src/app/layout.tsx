@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Prenota",
-  description: "Prenota il tuo appuntamento",
+  title: "IntelliGenda - L'agenda intelligente",
+  description: "Il tuo software di prenotazione, senza complicazioni. Gestisci il tuo calendario e ricevi prenotazioni online.",
 };
 
 export const viewport: Viewport = {

@@ -31,6 +31,10 @@ export default function AdminServizi() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
+  // String-based input values to allow full clearing before re-typing
+  const [priceStr, setPriceStr] = useState('0')
+  const [durationStr, setDurationStr] = useState('30')
+  const [cleanupStr, setCleanupStr] = useState('0')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -45,6 +49,7 @@ export default function AdminServizi() {
 
   const openNew = () => {
     setForm({ ...emptyForm, sortOrder: services.length + 1 })
+    setPriceStr('0'); setDurationStr('30'); setCleanupStr('0')
     setEditingId(null); setShowForm(true); setError('')
   }
 
@@ -58,16 +63,22 @@ export default function AdminServizi() {
       active: s.active,
       sortOrder: s.sortOrder,
     })
+    setPriceStr(String(s.price)); setDurationStr(String(s.durationMinutes)); setCleanupStr(String(s.cleanupMinutes || 0))
     setEditingId(s.id); setShowForm(true); setError('')
   }
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError('Il nome e obbligatorio'); return }
+    // Parse string inputs to final numeric values
+    const finalPrice = priceStr === '' ? 0 : parseFloat(priceStr) || 0
+    const finalDuration = durationStr === '' ? 5 : parseInt(durationStr) || 5
+    const finalCleanup = cleanupStr === '' ? 0 : parseInt(cleanupStr) || 0
+    const payload = { ...form, price: finalPrice, durationMinutes: finalDuration, cleanupMinutes: finalCleanup }
     setSaving(true); setError('')
     try {
       const url = editingId ? `/api/services/${editingId}` : '/api/services'
       const method = editingId ? 'PUT' : 'POST'
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Errore') }
       setShowForm(false); fetchServices()
     } catch (err) { setError(err instanceof Error ? err.message : 'Errore nel salvataggio') }
@@ -98,8 +109,8 @@ export default function AdminServizi() {
           <h1 className="text-2xl font-semibold text-stone-900">Servizi</h1>
           <p className="text-stone-500 text-sm mt-1">{services.length} servizi configurati</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 text-white text-sm font-medium hover:bg-stone-800 transition-colors">
-          <Plus className="w-4 h-4" /> Nuovo Servizio
+        <button onClick={openNew} className="flex items-center gap-2 px-3 py-2.5 sm:px-4 rounded-xl bg-stone-900 text-white text-sm font-medium hover:bg-stone-800 transition-colors">
+          <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nuovo Servizio</span>
         </button>
       </div>
 
@@ -110,8 +121,8 @@ export default function AdminServizi() {
         {services.map(service => {
           const totalMin = service.durationMinutes + (service.cleanupMinutes || 0)
           return (
-            <div key={service.id} className={`bg-white rounded-xl border border-stone-200 p-4 flex items-center gap-4 transition-opacity ${!service.active ? 'opacity-50' : ''}`}>
-              <GripVertical className="w-4 h-4 text-stone-300 shrink-0" />
+            <div key={service.id} className={`bg-white rounded-xl border border-stone-200 p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 transition-opacity ${!service.active ? 'opacity-50' : ''}`}>
+              <GripVertical className="w-4 h-4 text-stone-300 shrink-0 hidden sm:block" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-stone-900">{service.name}</span>
@@ -119,13 +130,16 @@ export default function AdminServizi() {
                 </div>
                 {service.description && (<p className="text-sm text-stone-500 truncate">{service.description}</p>)}
               </div>
-              <div className="flex items-center gap-4 shrink-0">
-                <div className="text-right">
+              <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0">
+                <div className="text-left sm:text-right">
                   <div className="flex items-center gap-1 text-sm font-medium text-stone-900"><Euro className="w-3.5 h-3.5" />{service.price.toFixed(2)}</div>
                   <div className="flex items-center gap-1 text-xs text-stone-500">
                     <Clock className="w-3 h-3" />{service.durationMinutes} min
                     {(service.cleanupMinutes || 0) > 0 && (
-                      <span className="text-stone-400">+ <Timer className="w-2.5 h-2.5 inline" />{service.cleanupMinutes} min pulizia = {totalMin} min</span>
+                      <span className="text-stone-400 sm:hidden"> + {service.cleanupMinutes} min pulizia</span>
+                    )}
+                    {(service.cleanupMinutes || 0) > 0 && (
+                      <span className="text-stone-400 hidden sm:inline">+ <Timer className="w-2.5 h-2.5 inline" />{service.cleanupMinutes} min pulizia = {totalMin} min</span>
                     )}
                   </div>
                 </div>
@@ -153,8 +167,8 @@ export default function AdminServizi() {
       {/* Form Modal */}
       <AnimatePresence>
         {showForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowForm(false)}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-lg font-semibold text-stone-900">{editingId ? 'Modifica Servizio' : 'Nuovo Servizio'}</h2>
                 <button onClick={() => setShowForm(false)} className="p-2 rounded-lg hover:bg-stone-100"><X className="w-5 h-5" /></button>
@@ -176,11 +190,11 @@ export default function AdminServizi() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-1.5">Prezzo (EUR) *</label>
-                    <input type="number" step="0.01" min="0" value={form.price} onChange={e => setForm(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))} className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors" />
+                    <input type="text" inputMode="decimal" value={priceStr} onChange={e => { setPriceStr(e.target.value); setForm(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 })) }} placeholder="0.00" className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-1.5">Durata (min) *</label>
-                    <input type="number" min="5" max="480" value={form.durationMinutes} onChange={e => setForm(prev => ({ ...prev, durationMinutes: parseInt(e.target.value) || 30 }))} className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors" />
+                    <input type="text" inputMode="numeric" value={durationStr} onChange={e => { setDurationStr(e.target.value); setForm(prev => ({ ...prev, durationMinutes: parseInt(e.target.value) || 30 })) }} placeholder="30" className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors" />
                   </div>
                 </div>
 
@@ -189,11 +203,11 @@ export default function AdminServizi() {
                     <Timer className="w-4 h-4" />
                     Tempo pulizia/organizzazione (min)
                   </label>
-                  <input type="number" min="0" max="120" value={form.cleanupMinutes} onChange={e => setForm(prev => ({ ...prev, cleanupMinutes: parseInt(e.target.value) || 0 }))} className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors" />
+                  <input type="text" inputMode="numeric" value={cleanupStr} onChange={e => { setCleanupStr(e.target.value); setForm(prev => ({ ...prev, cleanupMinutes: parseInt(e.target.value) || 0 })) }} placeholder="0" className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors" />
                   <p className="text-xs text-stone-400 mt-1">Tempo aggiuntivo per pulizia/organizzazione dopo il servizio. Si somma alla durata per il calcolo degli slot disponibili.</p>
-                  {(form.cleanupMinutes || 0) > 0 && (
+                  {(parseInt(cleanupStr) || 0) > 0 && (
                     <p className="text-xs text-stone-600 mt-1 font-medium">
-                      Durata totale: {form.durationMinutes} + {form.cleanupMinutes} = {form.durationMinutes + form.cleanupMinutes} min
+                      Durata totale: {parseInt(durationStr) || 30} + {parseInt(cleanupStr) || 0} = {(parseInt(durationStr) || 30) + (parseInt(cleanupStr) || 0)} min
                     </p>
                   )}
                 </div>

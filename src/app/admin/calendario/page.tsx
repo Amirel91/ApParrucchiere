@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronLeft, ChevronRight, X, Phone, Mail, Clock, Euro, User,
-  CalendarX, CalendarCheck,
+  CalendarX, CalendarCheck, Printer, Trash2, Plus, Calendar, List,
 } from 'lucide-react'
 
 interface BookingWithServices {
@@ -27,6 +28,7 @@ interface ClosedDate {
 }
 
 export default function AdminCalendario() {
+  const router = useRouter()
   const [bookings, setBookings] = useState<BookingWithServices[]>([])
   const [closedDates, setClosedDates] = useState<ClosedDate[]>([])
   const [loading, setLoading] = useState(true)
@@ -130,10 +132,24 @@ export default function AdminCalendario() {
 
   const dayBookings = selectedDate ? bookingsByDate(selectedDate) : []
 
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
   const updateBookingStatus = async (id: string, status: string) => {
     await fetch(`/api/bookings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
     setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b))
     if (selectedBooking?.id === id) setSelectedBooking(prev => prev ? { ...prev, status } : null)
+  }
+
+  const deleteBooking = async (id: string) => {
+    setDeleting(true)
+    try {
+      await fetch(`/api/bookings/${id}`, { method: 'DELETE' })
+      setBookings(prev => prev.filter(b => b.id !== id))
+      if (selectedBooking?.id === id) setSelectedBooking(null)
+      setDeleteConfirm(null)
+    } catch { /* silent */ }
+    finally { setDeleting(false) }
   }
 
   const statusColors: Record<string, string> = { confirmed: 'bg-emerald-100 text-emerald-700', pending: 'bg-amber-100 text-amber-700', cancelled: 'bg-red-100 text-red-700' }
@@ -145,28 +161,92 @@ export default function AdminCalendario() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      {/* Print header - only visible when printing */}
+      <div className="print-header hidden print:block print:mb-4">
+        <h1 className="text-xl font-bold">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()} - Calendario Prenotazioni</h1>
+      </div>
+
+      {/* Header - Desktop: full buttons, Mobile: title + plus icon */}
+      <div className="flex items-center justify-between mb-3">
         <div>
           <h1 className="text-2xl font-semibold text-stone-900">Calendario</h1>
-          <p className="text-stone-500 text-sm mt-1">Visualizza e gestisci le prenotazioni</p>
+          <p className="text-stone-500 text-sm mt-1 hidden sm:block">Visualizza e gestisci le prenotazioni</p>
         </div>
-        <div className="flex items-center gap-2 bg-white rounded-lg border border-stone-200 p-1">
-          <button onClick={() => setViewMode('month')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'month' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'}`}>Mese</button>
-          <button onClick={() => setViewMode('list')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'}`}>Lista</button>
+        <div className="flex items-center gap-2">
+          {/* New booking button */}
+          <button
+            onClick={() => router.push('/admin/prenota')}
+            className="print:hidden flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-stone-900 text-white text-sm font-medium hover:bg-stone-800 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Nuova Prenotazione</span>
+          </button>
+          {/* Print button - visible from sm+ */}
+          <button
+            onClick={() => window.print()}
+            className="print:hidden hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-stone-200 text-stone-700 text-sm font-medium hover:bg-stone-50 transition-colors"
+          >
+            <Printer className="w-4 h-4" />
+            <span className="hidden md:inline">Stampa</span>
+          </button>
+          {/* View toggle - visible from sm+ */}
+          <div className="print:hidden hidden sm:flex items-center gap-2 bg-white rounded-lg border border-stone-200 p-1">
+            <button
+              onClick={() => setViewMode('month')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'month' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'}`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span className="hidden md:inline">Mese</span>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'}`}
+            >
+              <List className="w-4 h-4" />
+              <span className="hidden md:inline">Lista</span>
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Mobile compact toolbar: view toggle + print */}
+      <div className="flex items-center justify-end gap-2 mb-4 sm:hidden print:hidden">
+        <div className="flex items-center gap-1 bg-white rounded-lg border border-stone-200 p-1">
+          <button
+            onClick={() => setViewMode('month')}
+            className={`p-2 rounded-md transition-colors ${viewMode === 'month' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'}`}
+            title="Vista Mese"
+          >
+            <Calendar className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'}`}
+            title="Vista Lista"
+          >
+            <List className="w-4 h-4" />
+          </button>
+        </div>
+        <button
+          onClick={() => window.print()}
+          className="p-2 rounded-xl bg-white border border-stone-200 text-stone-700 hover:bg-stone-50 transition-colors"
+          title="Stampa"
+        >
+          <Printer className="w-4 h-4" />
+        </button>
+      </div>
+
       {viewMode === 'month' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-1 print:gap-4">
           {/* Calendar */}
-          <div className="lg:col-span-2 bg-white rounded-xl border border-stone-200 p-4">
-            <div className="flex items-center justify-between mb-4">
+          <div className="lg:col-span-2 bg-white rounded-xl border border-stone-200 p-2 sm:p-4 print:col-span-1 print:border print:border-stone-300 print:p-3">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
               <button onClick={() => setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))} className="p-2 rounded-lg hover:bg-stone-100 transition-colors"><ChevronLeft className="w-5 h-5" /></button>
-              <span className="font-semibold text-stone-900">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</span>
+              <span className="font-semibold text-stone-900 text-sm sm:text-base">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</span>
               <button onClick={() => setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))} className="p-2 rounded-lg hover:bg-stone-100 transition-colors"><ChevronRight className="w-5 h-5" /></button>
             </div>
-            <div className="grid grid-cols-7 mb-2">{dayNames.map(d => (<div key={d} className="text-center text-xs font-medium text-stone-400 py-2">{d}</div>))}</div>
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 mb-1 sm:mb-2">{dayNames.map(d => (<div key={d} className="text-center text-[10px] sm:text-xs font-medium text-stone-400 py-1 sm:py-2">{d}</div>))}</div>
+            <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
               {calendarDays().map((day, i) => {
                 const dayBks = day.dateStr ? bookingsByDate(day.dateStr) : []
                 const closed = day.dateStr ? isDateClosed(day.dateStr) : false
@@ -175,7 +255,7 @@ export default function AdminCalendario() {
                     key={i}
                     disabled={day.date === 0}
                     onClick={() => day.dateStr && setSelectedDate(day.dateStr)}
-                    className={`min-h-[70px] rounded-lg p-1.5 text-left transition-all text-xs relative ${
+                    className={`min-h-[44px] sm:min-h-[70px] rounded-lg p-1 sm:p-1.5 text-left transition-all text-xs relative ${
                       day.date === 0 ? '' :
                       closed ? 'bg-red-50 border border-red-200' :
                       selectedDate === day.dateStr ? 'bg-stone-900 text-white' :
@@ -185,16 +265,26 @@ export default function AdminCalendario() {
                   >
                     {day.date > 0 && (
                       <>
-                        <div className={`font-medium mb-1 ${selectedDate === day.dateStr ? 'text-white' : closed ? 'text-red-500' : 'text-stone-700'}`}>
-                          {day.date}
+                        <div className="flex items-center justify-between">
+                          <div className={`font-medium text-xs sm:text-sm ${selectedDate === day.dateStr ? 'text-white' : closed ? 'text-red-500' : 'text-stone-700'}`}>
+                            {day.date}
+                          </div>
+                          {!closed && dayBks.length > 0 && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium min-w-[18px] text-center ${
+                              selectedDate === day.dateStr ? 'bg-white/20 text-white' : 'bg-stone-900 text-white'
+                            }`}>
+                              {dayBks.length}
+                            </span>
+                          )}
                         </div>
                         {closed && (
-                          <div className="flex items-center gap-0.5 text-[10px] text-red-500">
-                            <CalendarX className="w-3 h-3" /> Chiuso
+                          <div className="flex items-center gap-0.5 text-[10px] text-red-500 mt-0.5">
+                            <CalendarX className="w-3 h-3" />
+                            <span className="hidden sm:inline">Chiuso</span>
                           </div>
                         )}
                         {!closed && dayBks.length > 0 && (
-                          <div className={`text-[10px] leading-tight ${selectedDate === day.dateStr ? 'text-stone-300' : 'text-stone-500'}`}>
+                          <div className={`text-[10px] leading-tight mt-1 hidden sm:block ${selectedDate === day.dateStr ? 'text-stone-300' : 'text-stone-500'}`}>
                             {dayBks.slice(0, 2).map(b => (<div key={b.id} className="truncate">{formatTime(b.startTime)} {b.customerName}</div>))}
                             {dayBks.length > 2 && (<div>+{dayBks.length - 2} altro{dayBks.length > 3 ? 'i' : ''}</div>)}
                           </div>
@@ -207,8 +297,8 @@ export default function AdminCalendario() {
             </div>
           </div>
 
-          {/* Day Detail Panel */}
-          <div className="bg-white rounded-xl border border-stone-200 p-4">
+          {/* Day Detail Panel - Desktop: Side panel */}
+          <div className="hidden lg:block bg-white rounded-xl border border-stone-200 p-4 print:hidden">
             <h3 className="font-semibold text-stone-900 mb-4">{selectedDate ? formatDate(selectedDate) : 'Seleziona un giorno'}</h3>
 
             {selectedDate && (
@@ -253,7 +343,47 @@ export default function AdminCalendario() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200">
-          <div className="overflow-x-auto">
+          {/* Mobile: Card-based list view */}
+          <div className="md:hidden">
+            {bookings.length === 0 ? (
+              <div className="px-4 py-8 text-center text-stone-400 text-sm">Nessuna prenotazione questo mese</div>
+            ) : (
+              <div className="divide-y divide-stone-100">
+                {bookings.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()).map(booking => (
+                  <div key={booking.id} className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="font-medium text-stone-900 text-sm">{booking.customerName} {booking.customerSurname}</div>
+                        <div className="text-xs text-stone-500 mt-0.5">{formatDate(new Date(booking.startTime).toISOString().split('T')[0])} &middot; {formatTime(booking.startTime)}</div>
+                      </div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ml-2 ${statusColors[booking.status] || ''}`}>{statusLabels[booking.status] || booking.status}</span>
+                    </div>
+                    <div className="text-sm text-stone-600 mb-3">{booking.services.map(bs => bs.service.name).join(', ')}</div>
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-stone-900 text-sm">EUR{booking.totalPrice.toFixed(2)}</span>
+                      <div className="flex gap-1">
+                        <button onClick={() => setSelectedBooking(booking)} className="text-xs px-2 py-1.5 rounded-md text-stone-600 hover:bg-stone-100 transition-colors">Dettagli</button>
+                        {booking.status !== 'cancelled' && (
+                          <button onClick={() => updateBookingStatus(booking.id, 'cancelled')} className="text-xs px-2 py-1.5 rounded-md text-amber-600 hover:bg-amber-50 transition-colors">Annulla</button>
+                        )}
+                        {deleteConfirm === booking.id ? (
+                          <span className="flex items-center gap-1">
+                            <button onClick={() => deleteBooking(booking.id)} disabled={deleting} className="text-xs px-2 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">Conferma</button>
+                            <button onClick={() => setDeleteConfirm(null)} className="text-xs px-2 py-1.5 rounded-md text-stone-500 hover:bg-stone-100 transition-colors">No</button>
+                          </span>
+                        ) : (
+                          <button onClick={() => setDeleteConfirm(booking.id)} className="text-xs px-2 py-1.5 rounded-md text-red-600 hover:bg-red-50 transition-colors flex items-center gap-1"><Trash2 className="w-3 h-3" /></button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Desktop: Table view */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-stone-200">
@@ -263,7 +393,7 @@ export default function AdminCalendario() {
                   <th className="text-left px-4 py-3 text-xs font-medium text-stone-500 uppercase">Servizi</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-stone-500 uppercase">Totale</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-stone-500 uppercase">Stato</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-stone-500 uppercase">Azioni</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-stone-500 uppercase print:hidden">Azioni</th>
                 </tr>
               </thead>
               <tbody>
@@ -278,9 +408,17 @@ export default function AdminCalendario() {
                       <td className="px-4 py-3 text-sm text-stone-500">{booking.services.map(bs => bs.service.name).join(', ')}</td>
                       <td className="px-4 py-3 text-sm font-medium">EUR{booking.totalPrice.toFixed(2)}</td>
                       <td className="px-4 py-3"><span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[booking.status] || ''}`}>{statusLabels[booking.status] || booking.status}</span></td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 print:hidden">
                         <div className="flex gap-1">
-                          {booking.status !== 'cancelled' && (<button onClick={() => updateBookingStatus(booking.id, 'cancelled')} className="text-xs px-2 py-1 rounded-md text-red-600 hover:bg-red-50 transition-colors">Annulla</button>)}
+                          {booking.status !== 'cancelled' && (<button onClick={() => updateBookingStatus(booking.id, 'cancelled')} className="text-xs px-2 py-1 rounded-md text-amber-600 hover:bg-amber-50 transition-colors">Annulla</button>)}
+                          {deleteConfirm === booking.id ? (
+                            <span className="flex items-center gap-1">
+                              <button onClick={() => deleteBooking(booking.id)} disabled={deleting} className="text-xs px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">Conferma</button>
+                              <button onClick={() => setDeleteConfirm(null)} className="text-xs px-2 py-1 rounded-md text-stone-500 hover:bg-stone-100 transition-colors">No</button>
+                            </span>
+                          ) : (
+                            <button onClick={() => setDeleteConfirm(booking.id)} className="text-xs px-2 py-1 rounded-md text-red-600 hover:bg-red-50 transition-colors flex items-center gap-1"><Trash2 className="w-3 h-3" />Elimina</button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -292,11 +430,102 @@ export default function AdminCalendario() {
         </div>
       )}
 
+      {/* Mobile: Day Detail Bottom Sheet */}
+      <AnimatePresence>
+        {selectedDate && (
+          <>
+            {/* Backdrop - tap to close */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="lg:hidden fixed inset-0 bg-black/30 z-40"
+              onClick={() => setSelectedDate(null)}
+            />
+            {/* Sheet */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="lg:hidden fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl border-t border-stone-200 max-h-[70vh] overflow-y-auto"
+            >
+              {/* Drag handle */}
+              <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-white z-10">
+                <div className="w-10 h-1 rounded-full bg-stone-300" />
+              </div>
+              {/* Close button */}
+              <div className="flex items-center justify-between px-4 pb-2">
+                <h3 className="font-semibold text-stone-900">{formatDate(selectedDate)}</h3>
+                <button onClick={() => setSelectedDate(null)} className="p-2 rounded-lg hover:bg-stone-100 transition-colors" aria-label="Chiudi">
+                  <X className="w-5 h-5 text-stone-500" />
+                </button>
+              </div>
+
+              {/* Close/Reopen day button */}
+              <div className="px-4 pb-3">
+                <button
+                  onClick={() => handleToggleCloseDay(selectedDate)}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    isDateClosed(selectedDate)
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                  }`}
+                >
+                  {isDateClosed(selectedDate) ? (<><CalendarCheck className="w-4 h-4" /> Riapri giornata</>) : (<><CalendarX className="w-4 h-4" /> Chiudi giornata</>)}
+                </button>
+              </div>
+
+              {/* Closed reason */}
+              {isDateClosed(selectedDate) && (() => {
+                const cd = closedDates.find(c => c.date === selectedDate)
+                return cd?.reason ? (<p className="px-4 pb-3 text-xs text-stone-500 text-center">Motivo: {cd.reason}</p>) : null
+              })()}
+
+              {/* Bookings list */}
+              <div className="px-4 pb-6">
+                {dayBookings.length === 0 ? (
+                  <p className="text-stone-400 text-sm py-6 text-center">
+                    {isDateClosed(selectedDate) ? 'Giornata chiusa' : 'Nessuna prenotazione per questo giorno'}
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {dayBookings.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(booking => (
+                      <button key={booking.id} onClick={() => setSelectedBooking(booking)} className="w-full text-left p-3 rounded-xl border border-stone-200 hover:border-stone-300 transition-colors">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-stone-900 text-sm">{formatTime(booking.startTime)} - {formatTime(booking.endTime)}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${statusColors[booking.status] || ''}`}>{statusLabels[booking.status] || booking.status}</span>
+                        </div>
+                        <div className="text-sm text-stone-600">{booking.customerName} {booking.customerSurname}</div>
+                        <div className="text-xs text-stone-400 mt-1">{booking.services.map(bs => bs.service.name).join(', ')} &middot; EUR{booking.totalPrice.toFixed(2)}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Close Day Modal */}
       <AnimatePresence>
         {closeDateModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setCloseDateModal(false)}>
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-2 sm:p-4"
+            onClick={() => setCloseDateModal(false)}
+          >
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-t-2xl sm:rounded-2xl max-w-sm w-full p-4 sm:p-6 shadow-xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
+            >
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-stone-900">Chiudi Giornata</h2>
                 <button onClick={() => setCloseDateModal(false)} className="p-2 rounded-lg hover:bg-stone-100"><X className="w-5 h-5" /></button>
@@ -318,31 +547,44 @@ export default function AdminCalendario() {
       {/* Booking Detail Modal */}
       <AnimatePresence>
         {selectedBooking && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setSelectedBooking(null)}>
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
-              <div className="flex items-center justify-between mb-5">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-2 sm:p-4"
+            onClick={() => setSelectedBooking(null)}
+          >
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-4 sm:mb-5">
                 <h2 className="text-lg font-semibold text-stone-900">Dettaglio Prenotazione</h2>
                 <button onClick={() => setSelectedBooking(null)} className="p-2 rounded-lg hover:bg-stone-100"><X className="w-5 h-5" /></button>
               </div>
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className={`text-xs px-3 py-1 rounded-full font-medium ${statusColors[selectedBooking.status] || ''}`}>{statusLabels[selectedBooking.status] || selectedBooking.status}</span>
                   {selectedBooking.status !== 'cancelled' && (<button onClick={() => updateBookingStatus(selectedBooking.id, 'cancelled')} className="text-xs px-3 py-1.5 rounded-lg text-red-600 hover:bg-red-50 font-medium transition-colors">Annulla Prenotazione</button>)}
                 </div>
                 <div className="flex items-center gap-3 text-stone-700">
-                  <Clock className="w-5 h-5 text-stone-400" />
+                  <Clock className="w-5 h-5 text-stone-400 shrink-0" />
                   <div>
                     <div className="font-medium">{formatDate(new Date(selectedBooking.startTime).toISOString().split('T')[0])}</div>
                     <div className="text-sm text-stone-500">{formatTime(selectedBooking.startTime)} - {formatTime(selectedBooking.endTime)}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 text-stone-700">
-                  <User className="w-5 h-5 text-stone-400" />
-                  <div>
+                <div className="flex items-start gap-3 text-stone-700">
+                  <User className="w-5 h-5 text-stone-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
                     <div className="font-medium">{selectedBooking.customerName} {selectedBooking.customerSurname}</div>
-                    <div className="flex gap-4 text-sm text-stone-500">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-stone-500 mt-0.5">
                       <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedBooking.customerPhone}</span>
-                      {selectedBooking.customerEmail && (<span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {selectedBooking.customerEmail}</span>)}
+                      {selectedBooking.customerEmail && (<span className="flex items-center gap-1 break-all"><Mail className="w-3 h-3" /> {selectedBooking.customerEmail}</span>)}
                     </div>
                   </div>
                 </div>
@@ -352,7 +594,7 @@ export default function AdminCalendario() {
                     {selectedBooking.services.map(bs => (
                       <div key={bs.service.name} className="flex justify-between text-sm p-2 rounded-lg bg-stone-50">
                         <span className="text-stone-700">{bs.service.name}</span>
-                        <span className="text-stone-500">EUR{bs.service.price.toFixed(2)}</span>
+                        <span className="text-stone-500 shrink-0 ml-2">EUR{bs.service.price.toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -360,6 +602,17 @@ export default function AdminCalendario() {
                 <div className="flex items-center justify-between pt-3 border-t border-stone-200">
                   <div className="flex items-center gap-2 font-semibold text-stone-900"><Euro className="w-5 h-5" />Totale</div>
                   <span className="text-xl font-bold text-stone-900">EUR{selectedBooking.totalPrice.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center gap-2 pt-3 border-t border-stone-100 flex-wrap">
+                  {deleteConfirm === selectedBooking.id ? (
+                    <>
+                      <p className="text-sm text-red-600 flex-1">Eliminare definitivamente?</p>
+                      <button onClick={() => deleteBooking(selectedBooking.id)} disabled={deleting} className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors">{deleting ? 'Eliminazione...' : 'Elimina'}</button>
+                      <button onClick={() => setDeleteConfirm(null)} className="px-3 py-2 rounded-lg border border-stone-200 text-stone-600 text-sm font-medium hover:bg-stone-50 transition-colors">Annulla</button>
+                    </>
+                  ) : (
+                    <button onClick={() => setDeleteConfirm(selectedBooking.id)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 text-sm font-medium transition-colors"><Trash2 className="w-4 h-4" />Elimina prenotazione</button>
+                  )}
                 </div>
               </div>
             </motion.div>

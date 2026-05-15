@@ -16,7 +16,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash)
 }
 
-export async function createToken(payload: { username: string; id: string }): Promise<string> {
+export async function createToken(payload: { username: string; id: string; tenantId: string }): Promise<string> {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime('7d')
@@ -27,7 +27,7 @@ export async function createToken(payload: { username: string; id: string }): Pr
 export async function verifyToken(token: string) {
   try {
     const { payload } = await jwtVerify(token, secret)
-    return payload as { username: string; id: string }
+    return payload as { username: string; id: string; tenantId: string }
   } catch {
     return null
   }
@@ -45,5 +45,5 @@ export async function requireAdmin() {
   if (!session) {
     throw new Error('Unauthorized')
   }
-  return session
+  return session as { username: string; id: string; tenantId: string }
 }

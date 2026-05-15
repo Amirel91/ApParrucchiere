@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAvailableSlots } from '@/lib/slot-algorithm'
+import { getTenantConfig } from '@/lib/tenant'
 
 // GET /api/slots?date=YYYY-MM-DD&duration=60
 export async function GET(request: NextRequest) {
@@ -23,7 +24,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const result = await getAvailableSlots(date, durationMinutes)
+    const config = await getTenantConfig(request)
+    if (!config) {
+      return NextResponse.json({ date, slots: [], availability: 'none' })
+    }
+
+    const result = await getAvailableSlots(date, durationMinutes, config.id)
     return NextResponse.json(result)
   } catch (error) {
     console.error('GET /api/slots error:', error)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyPassword, createToken } from '@/lib/auth'
 import { loginSchema } from '@/lib/validations'
+import { getTenantSlugFromRequest, getTenantBySlug } from '@/lib/tenant'
 
 // POST /api/auth/login
 export async function POST(request: NextRequest) {
@@ -9,8 +10,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = loginSchema.parse(body)
 
-    const user = await db.adminUser.findUnique({
-      where: { username: data.username },
+    // Get tenant from cookie (set by middleware based on subdomain)
+    const slug = getTenantSlugFromRequest(request)
+    if (!slug) {
+      return NextResponse.json({ error: 'Nessun negozio selezionato' }, { status: 400 })
+    }
+
+    // Find tenant
+    const tenant = await getTenantBySlug(slug)
+    if (!tenant) {
+      return NextResponse.json({ error: 'Negozio non trovato' }, { status: 404 })
+    }
+
+    // Find admin within this tenant
+    const user = await db.adminUser.findFirst({
+      where: {
+        username: data.username,
+        tenantId: tenant.id,
+      },
     })
 
     if (!user) {
@@ -28,7 +45,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const token = await createToken({ username: user.username, id: user.id })
+    const token = await createToken({ username: user.username, id: user.id, tenantId: tenant.id })
 
     const response = NextResponse.json({ success: true, username: user.username })
     response.cookies.set('admin_token', token, {

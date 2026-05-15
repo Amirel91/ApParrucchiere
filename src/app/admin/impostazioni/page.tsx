@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Save, Store, Clock, Key, Check, AlertCircle, Image, UtensilsCrossed } from 'lucide-react'
+import { Save, Store, Clock, Key, Check, AlertCircle, UtensilsCrossed } from 'lucide-react'
 
 interface BusinessConfig {
   id: string
@@ -10,8 +10,6 @@ interface BusinessConfig {
   shopPhone?: string
   shopEmail?: string
   shopAddress?: string
-  businessType: string
-  selectedImages: string
   lunchBreakEnabled: boolean
   lunchBreakStart: string
   lunchBreakEnd: string
@@ -42,44 +40,10 @@ const defaultConfig: BusinessConfig = {
   shopPhone: '',
   shopEmail: '',
   shopAddress: '',
-  businessType: 'parrucchiere',
-  selectedImages: '[]',
   lunchBreakEnabled: false,
   lunchBreakStart: '12:30',
   lunchBreakEnd: '14:00',
 }
-
-// Preset images organized by business type
-const GALLERY_IMAGES: Record<string, { src: string; label: string }[]> = {
-  parrucchiere: [
-    { src: '/images/gallery/parrucchiere-1.png', label: 'Salone elegante' },
-    { src: '/images/gallery/parrucchiere-2.png', label: 'Attrezzature professionali' },
-    { src: '/images/gallery/estetica-1.png', label: 'Area relax' },
-    { src: '/images/gallery/estetica-2.png', label: 'Prodotti premium' },
-  ],
-  barbiere: [
-    { src: '/images/gallery/barbiere-1.png', label: 'Barberia moderna' },
-    { src: '/images/gallery/barbiere-2.png', label: 'Attrezzature classiche' },
-    { src: '/images/gallery/parrucchiere-1.png', label: 'Area lavoro' },
-  ],
-  estetica: [
-    { src: '/images/gallery/estetica-1.png', label: 'Spa treatment room' },
-    { src: '/images/gallery/estetica-2.png', label: 'Skincare products' },
-    { src: '/images/gallery/parrucchiere-2.png', label: 'Attrezzature' },
-  ],
-  unghie: [
-    { src: '/images/gallery/unghie-1.png', label: 'Stazione nail art' },
-    { src: '/images/gallery/unghie-2.png', label: 'Design creativi' },
-    { src: '/images/gallery/estetica-2.png', label: 'Prodotti' },
-  ],
-}
-
-const BUSINESS_TYPES = [
-  { value: 'parrucchiere', label: 'Parrucchiere' },
-  { value: 'barbiere', label: 'Barbiere' },
-  { value: 'estetica', label: 'Estetica / Spa' },
-  { value: 'unghie', label: 'Nail Art / Unghie' },
-]
 
 export default function AdminImpostazioni() {
   const [config, setConfig] = useState<BusinessConfig>(defaultConfig)
@@ -91,14 +55,7 @@ export default function AdminImpostazioni() {
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' })
   const [passwordError, setPasswordError] = useState('')
   const [passwordSuccess, setPasswordSuccess] = useState('')
-  const [activeTab, setActiveTab] = useState<'negozio' | 'galleria' | 'orari' | 'password'>('negozio')
-
-  // Parse selected images
-  const selectedImages: string[] = (() => {
-    try {
-      return JSON.parse(config.selectedImages || '[]')
-    } catch { return [] }
-  })()
+  const [activeTab, setActiveTab] = useState<'negozio' | 'orari' | 'password'>('negozio')
 
   useEffect(() => {
     let configLoaded = false
@@ -116,8 +73,6 @@ export default function AdminImpostazioni() {
             shopPhone: data.shopPhone || '',
             shopEmail: data.shopEmail || '',
             shopAddress: data.shopAddress || '',
-            businessType: data.businessType || 'parrucchiere',
-            selectedImages: data.selectedImages || '[]',
             lunchBreakEnabled: data.lunchBreakEnabled || false,
             lunchBreakStart: data.lunchBreakStart || '12:30',
             lunchBreakEnd: data.lunchBreakEnd || '14:00',
@@ -137,11 +92,28 @@ export default function AdminImpostazioni() {
   const saveConfig = async () => {
     setSaving(true); setSaved(false); setSaveError('')
     try {
-      const configRes = await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) })
-      if (!configRes.ok) { const errData = await configRes.json(); throw new Error(errData.error || 'Errore nel salvataggio della configurazione') }
+      const configRes = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      })
+      if (!configRes.ok) {
+        const errData = await configRes.json()
+        const msg = errData.debug
+          ? `${errData.error} (${errData.debug})`
+          : (errData.error || 'Errore nel salvataggio della configurazione')
+        throw new Error(msg)
+      }
 
-      const hoursRes = await fetch('/api/working-hours', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(hours) })
-      if (!hoursRes.ok) { const errData = await hoursRes.json(); throw new Error(errData.error || "Errore nel salvataggio degli orari") }
+      const hoursRes = await fetch('/api/working-hours', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(hours),
+      })
+      if (!hoursRes.ok) {
+        const errData = await hoursRes.json()
+        throw new Error(errData.error || "Errore nel salvataggio degli orari")
+      }
 
       setSaved(true); setTimeout(() => setSaved(false), 3000)
     } catch (err) {
@@ -151,14 +123,6 @@ export default function AdminImpostazioni() {
 
   const updateConfigField = (field: keyof BusinessConfig, value: string | boolean) => {
     setConfig(prev => ({ ...prev, [field]: value }))
-  }
-
-  const toggleImage = (src: string) => {
-    const current = selectedImages
-    const updated = current.includes(src)
-      ? current.filter(s => s !== src)
-      : [...current, src]
-    setConfig(prev => ({ ...prev, selectedImages: JSON.stringify(updated) }))
   }
 
   const handleChangePassword = async () => {
@@ -180,25 +144,24 @@ export default function AdminImpostazioni() {
     return (<div className="flex items-center justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-stone-300 border-t-stone-900 rounded-full" /></div>)
   }
 
-  const availableImages = GALLERY_IMAGES[config.businessType] || GALLERY_IMAGES.parrucchiere
-
   const tabs = [
     { id: 'negozio' as const, label: 'Negozio', icon: Store },
-    { id: 'galleria' as const, label: 'Galleria', icon: Image },
     { id: 'orari' as const, label: 'Orari', icon: Clock },
     { id: 'password' as const, label: 'Password', icon: Key },
   ]
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl pb-20 sm:pb-0">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-stone-900">Impostazioni</h1>
           <p className="text-stone-500 text-sm mt-1">Configura il tuo negozio</p>
         </div>
-        <button onClick={saveConfig} disabled={saving} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 text-white text-sm font-medium hover:bg-stone-800 disabled:opacity-50 transition-all">
-          {saved ? (<><Check className="w-4 h-4" />Salvato!</>) : (<><Save className="w-4 h-4" />{saving ? 'Salvataggio...' : 'Salva tutto'}</>)}
-        </button>
+        <div className="hidden sm:block">
+          <button onClick={saveConfig} disabled={saving} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 text-white text-sm font-medium hover:bg-stone-800 disabled:opacity-50 transition-all">
+            {saved ? (<><Check className="w-4 h-4" />Salvato!</>) : (<><Save className="w-4 h-4" />{saving ? 'Salvataggio...' : 'Salva tutto'}</>)}
+          </button>
+        </div>
       </div>
 
       {saveError && (<div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 flex items-center gap-3 text-red-600 text-sm"><AlertCircle className="w-5 h-5 shrink-0" /><span>{saveError}</span></div>)}
@@ -221,14 +184,6 @@ export default function AdminImpostazioni() {
       {activeTab === 'negozio' && (
         <div className="bg-white rounded-xl border border-stone-200 p-6">
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">Tipo di Attivita</label>
-              <select value={config.businessType} onChange={e => updateConfigField('businessType', e.target.value)} className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 outline-none focus:border-stone-900 transition-colors">
-                {BUSINESS_TYPES.map(bt => (<option key={bt.value} value={bt.value}>{bt.label}</option>))}
-              </select>
-              <p className="text-xs text-stone-400 mt-1">Le immagini nella galleria cambieranno in base al tipo selezionato</p>
-            </div>
-
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1.5">Nome del Negozio *</label>
               <input type="text" value={config.shopName} onChange={e => updateConfigField('shopName', e.target.value)} placeholder="Es: Studio Bellezza Anna" className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors" />
@@ -259,56 +214,9 @@ export default function AdminImpostazioni() {
         </div>
       )}
 
-      {/* Tab: Galleria */}
-      {activeTab === 'galleria' && (
-        <div className="bg-white rounded-xl border border-stone-200 p-6">
-          <div className="flex items-center gap-2 mb-2">
-            <Image className="w-5 h-5 text-stone-500" />
-            <h2 className="font-semibold text-stone-900">Galleria Immagini</h2>
-          </div>
-          <p className="text-stone-500 text-sm mb-5">Seleziona le immagini da mostrare nella homepage. Le immagini cambiano in base al tipo di attivita selezionato.</p>
-
-          {selectedImages.length > 0 && (
-            <div className="mb-5">
-              <p className="text-xs font-medium text-stone-600 mb-2">Selezionate ({selectedImages.length}):</p>
-              <div className="grid grid-cols-2 gap-3">
-                {selectedImages.map(src => (
-                  <div key={src} className="relative group rounded-xl overflow-hidden aspect-video">
-                    <img src={src} alt="" className="w-full h-full object-cover" />
-                    <button onClick={() => toggleImage(src)} className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/60 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">X</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <p className="text-xs font-medium text-stone-600 mb-3">Disponibili per: {BUSINESS_TYPES.find(b => b.value === config.businessType)?.label || 'Parrucchiere'}</p>
-          <div className="grid grid-cols-2 gap-3">
-            {availableImages.map(img => {
-              const isSelected = selectedImages.includes(img.src)
-              return (
-                <button key={img.src} onClick={() => toggleImage(img.src)} className={`relative rounded-xl overflow-hidden aspect-video border-2 transition-all ${isSelected ? 'border-stone-900 ring-2 ring-stone-900/20' : 'border-stone-200 hover:border-stone-400'}`}>
-                  <img src={img.src} alt={img.label} className="w-full h-full object-cover" />
-                  <div className={`absolute inset-0 transition-colors ${isSelected ? 'bg-stone-900/10' : 'bg-black/0 hover:bg-black/5'}`} />
-                  <div className={`absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/60 to-transparent`}>
-                    <span className="text-white text-xs font-medium">{img.label}</span>
-                  </div>
-                  {isSelected && (
-                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-stone-900 text-white flex items-center justify-center">
-                      <Check className="w-3.5 h-3.5" />
-                    </div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Tab: Orari */}
       {activeTab === 'orari' && (
         <>
-          {/* Working Hours */}
           <div className="bg-white rounded-xl border border-stone-200 p-6 mb-6">
             <div className="flex items-center gap-2 mb-5">
               <Clock className="w-5 h-5 text-stone-500" />
@@ -316,27 +224,35 @@ export default function AdminImpostazioni() {
             </div>
             <div className="space-y-3">
               {hours.map((wh, i) => (
-                <div key={wh.dayOfWeek} className="flex items-center gap-3">
-                  <div className="w-28 text-sm font-medium text-stone-700 shrink-0">{DAY_NAMES[i]}</div>
-                  <label className="flex items-center gap-2 cursor-pointer shrink-0">
-                    <div onClick={() => updateHour(i, 'closed', !wh.closed)} className={`relative w-10 h-6 rounded-full transition-colors cursor-pointer ${wh.closed ? 'bg-red-400' : 'bg-stone-300'}`}>
-                      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${wh.closed ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
-                    </div>
-                    <span className="text-xs text-stone-500 w-10">{wh.closed ? 'Chiuso' : 'Aperto'}</span>
-                  </label>
-                  {!wh.closed && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <input type="time" value={wh.openTime} onChange={e => updateHour(i, 'openTime', e.target.value)} className="px-3 py-2 rounded-lg border border-stone-200 bg-white text-stone-900 outline-none focus:border-stone-900 transition-colors" />
-                      <span className="text-stone-400">&mdash;</span>
-                      <input type="time" value={wh.closeTime} onChange={e => updateHour(i, 'closeTime', e.target.value)} className="px-3 py-2 rounded-lg border border-stone-200 bg-white text-stone-900 outline-none focus:border-stone-900 transition-colors" />
-                    </div>
-                  )}
+                <div key={wh.dayOfWeek} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 py-2 sm:py-0">
+                  <div className="flex items-center justify-between sm:w-28 shrink-0">
+                    <span className="text-sm font-medium text-stone-700">{DAY_NAMES[i]}</span>
+                    <label className="flex items-center gap-2 cursor-pointer sm:hidden shrink-0">
+                      <div onClick={() => updateHour(i, 'closed', !wh.closed)} className={`relative w-10 h-6 rounded-full transition-colors cursor-pointer ${wh.closed ? 'bg-red-400' : 'bg-stone-300'}`}>
+                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${wh.closed ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                      </div>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="hidden sm:flex items-center gap-2 cursor-pointer shrink-0">
+                      <div onClick={() => updateHour(i, 'closed', !wh.closed)} className={`relative w-10 h-6 rounded-full transition-colors cursor-pointer ${wh.closed ? 'bg-red-400' : 'bg-stone-300'}`}>
+                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${wh.closed ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                      </div>
+                      <span className="text-xs text-stone-500 w-10">{wh.closed ? 'Chiuso' : 'Aperto'}</span>
+                    </label>
+                    {!wh.closed && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <input type="time" value={wh.openTime} onChange={e => updateHour(i, 'openTime', e.target.value)} className="px-3 py-2 rounded-lg border border-stone-200 bg-white text-stone-900 outline-none focus:border-stone-900 transition-colors" />
+                        <span className="text-stone-400">&mdash;</span>
+                        <input type="time" value={wh.closeTime} onChange={e => updateHour(i, 'closeTime', e.target.value)} className="px-3 py-2 rounded-lg border border-stone-200 bg-white text-stone-900 outline-none focus:border-stone-900 transition-colors" />
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Lunch Break */}
           <div className="bg-white rounded-xl border border-stone-200 p-6">
             <div className="flex items-center gap-2 mb-5">
               <UtensilsCrossed className="w-5 h-5 text-stone-500" />
@@ -394,6 +310,13 @@ export default function AdminImpostazioni() {
           </div>
         </div>
       )}
+
+      {/* Sticky save button for mobile */}
+      <div className="fixed bottom-0 left-0 right-0 sm:hidden bg-white/90 backdrop-blur-lg border-t border-stone-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] z-30">
+        <button onClick={saveConfig} disabled={saving} className="w-full py-3.5 rounded-xl bg-stone-900 text-white text-sm font-medium hover:bg-stone-800 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+          {saved ? (<><Check className="w-4 h-4" />Salvato!</>) : (<><Save className="w-4 h-4" />{saving ? 'Salvataggio...' : 'Salva tutto'}</>)}
+        </button>
+      </div>
     </div>
   )
 }

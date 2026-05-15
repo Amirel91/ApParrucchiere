@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { serviceSchema } from '@/lib/validations'
+import { getTenantConfig, requireTenantConfig } from '@/lib/tenant'
 
 // GET /api/services - Public: get active services (for client booking)
 export async function GET(request: NextRequest) {
@@ -9,12 +10,8 @@ export async function GET(request: NextRequest) {
     await ensureDbSchema()
     const { searchParams } = new URL(request.url)
     const includeInactive = searchParams.get('all') === 'true'
-    
-    // Check if this is an admin request
-    const authHeader = request.headers.get('cookie') || ''
-    const isAdmin = authHeader.includes('admin_token')
 
-    let config = await db.businessConfig.findFirst()
+    const config = await getTenantConfig(request)
     if (!config) {
       return NextResponse.json([])
     }
@@ -22,7 +19,7 @@ export async function GET(request: NextRequest) {
     const services = await db.service.findMany({
       where: {
         configId: config.id,
-        ...(isAdmin || includeInactive ? {} : { active: true }),
+        ...(includeInactive ? {} : { active: true }),
       },
       orderBy: { sortOrder: 'asc' },
     })
@@ -42,10 +39,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = serviceSchema.parse(body)
 
-    const config = await db.businessConfig.findFirst()
-    if (!config) {
-      return NextResponse.json({ error: 'Configurazione non trovata' }, { status: 404 })
-    }
+    const config = await requireTenantConfig(request)
 
     const service = await db.service.create({
       data: {
@@ -58,6 +52,9 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+    }
+    if (error instanceof Error && error.message === 'TenantNotFound') {
+      return NextResponse.json({ error: 'Negozio non trovato' }, { status: 404 })
     }
     if (error && typeof error === 'object' && 'issues' in error) {
       return NextResponse.json({ error: 'Dati non validi', details: error }, { status: 400 })

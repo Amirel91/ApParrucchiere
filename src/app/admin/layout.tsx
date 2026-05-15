@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   Home,
+  Plus,
 } from 'lucide-react'
 
 interface AuthContextType {
@@ -26,6 +27,7 @@ export const useAuth = () => useContext(AuthContext)
 const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays },
+  { href: '/admin/prenota', label: 'Nuova Prenotazione', icon: Plus },
   { href: '/admin/servizi', label: 'Servizi', icon: Scissors },
   { href: '/admin/impostazioni', label: 'Impostazioni', icon: Settings },
 ]
@@ -163,14 +165,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Main content */}
         <div className="flex-1 min-w-0">
           {/* Mobile header */}
-          <header className="lg:hidden sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-stone-200 px-4 py-3 flex items-center gap-3">
+          <header className="lg:hidden sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-stone-200 px-4 py-3 flex items-center gap-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-lg hover:bg-stone-100"
+              className="p-2 -ml-2 rounded-lg hover:bg-stone-100"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-5 h-5 text-stone-600" />
             </button>
-            <span className="font-semibold text-stone-900">Gestionale</span>
+            <span className="flex-1 font-semibold text-stone-900 truncate">{navItems.find(n => pathname === n.href || (n.href !== '/admin/dashboard' && pathname.startsWith(n.href)))?.label || 'Gestionale'}</span>
+            {pathname !== '/admin/prenota' && (
+              <Link href="/admin/prenota" className="p-2 -mr-2 rounded-lg hover:bg-stone-100 text-stone-600 hover:text-stone-900 transition-colors">
+                <Plus className="w-5 h-5" />
+              </Link>
+            )}
           </header>
 
           {/* Page content */}

@@ -16,7 +16,8 @@ export interface SlotResult {
  */
 export async function getAvailableSlots(
   dateStr: string,
-  totalDurationMinutes: number
+  totalDurationMinutes: number,
+  configId?: string
 ): Promise<SlotResult> {
   await ensureDbSchema()
   const date = new Date(dateStr + 'T00:00:00')
@@ -24,6 +25,7 @@ export async function getAvailableSlots(
 
   // Get working hours for this day
   const config = await db.businessConfig.findFirst({
+    where: configId ? { id: configId } : undefined,
     include: { workingHours: true, closedDates: true },
   })
 
@@ -139,7 +141,8 @@ export async function getAvailableSlots(
 export async function getDaysAvailability(
   startDate: string,
   endDate: string,
-  totalDurationMinutes: number
+  totalDurationMinutes: number,
+  configId?: string
 ): Promise<SlotResult[]> {
   const results: SlotResult[] = []
   const current = new Date(startDate + 'T00:00:00')
@@ -147,7 +150,7 @@ export async function getDaysAvailability(
 
   while (current <= end) {
     const dateStr = current.toISOString().split('T')[0]
-    const result = await getAvailableSlots(dateStr, totalDurationMinutes)
+    const result = await getAvailableSlots(dateStr, totalDurationMinutes, configId)
     results.push(result)
     current.setDate(current.getDate() + 1)
   }
@@ -161,18 +164,20 @@ export async function getDaysAvailability(
 export async function isSlotAvailable(
   dateStr: string,
   time: string,
-  totalDurationMinutes: number
+  totalDurationMinutes: number,
+  configId?: string
 ): Promise<boolean> {
-  const { slots } = await getAvailableSlots(dateStr, totalDurationMinutes)
+  const { slots } = await getAvailableSlots(dateStr, totalDurationMinutes, configId)
   return slots.includes(time)
 }
 
 /**
  * Check if a date is a closed date
  */
-export async function isDateClosed(dateStr: string): Promise<boolean> {
+export async function isDateClosed(dateStr: string, configId?: string): Promise<boolean> {
   await ensureDbSchema()
   const config = await db.businessConfig.findFirst({
+    where: configId ? { id: configId } : undefined,
     include: { closedDates: true },
   })
   if (!config) return false

@@ -8,18 +8,33 @@ datasource db {
   directUrl = env("DATABASE_URL")
 }
 
+// ============ TENANT (Multi-tenancy) ============
+
+model Tenant {
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  businessName    String
+  ownerName       String          @default("")
+  ownerEmail      String          @default("")
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  config          BusinessConfig?
+  admins          AdminUser[]
+}
+
 // ============ SHOP CONFIGURATION (Singleton per tenant) ============
 
 model BusinessConfig {
   id              String         @id @default(cuid())
+  tenantId        String         @unique
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   shopName        String         @default("Il Mio Negozio")
   shopDescription String         @default("")
   shopPhone       String?
   shopEmail       String?
   shopAddress     String?
-  businessType    String         @default("parrucchiere") // parrucchiere, barbiere, estetica, unghie
-  selectedImages  String         @default("[]")           // JSON array of selected image paths
-
   // Lunch break
   lunchBreakEnabled Boolean      @default(false)
   lunchBreakStart   String       @default("12:30")  // "HH:MM"
@@ -42,7 +57,7 @@ model Service {
   description     String?
   price           Float
   durationMinutes Int
-  cleanupMinutes  Int             @default(0)  // cleanup/organization time after service
+  cleanupMinutes  Int             @default(0)
   active          Boolean         @default(true)
   sortOrder       Int             @default(0)
 
@@ -122,8 +137,12 @@ model ClosedDate {
 
 model AdminUser {
   id           String   @id @default(cuid())
-  username     String   @unique
+  username     String
   password     String   // bcrypt hashed
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, username])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

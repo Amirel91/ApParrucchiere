@@ -2,17 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { workingHoursSchema } from '@/lib/validations'
+import { getTenantConfig, requireTenantConfig } from '@/lib/tenant'
 
 // GET /api/working-hours - Public: get working hours
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureDbSchema()
-    const config = await db.businessConfig.findFirst({
-      select: { id: true },
-    })
+    const config = await getTenantConfig(request)
 
     if (!config) {
-      // Return default hours if no config exists
+      // Return default hours if no tenant context
       const defaults = Array.from({ length: 7 }, (_, i) => ({
         id: '',
         dayOfWeek: i + 1,
@@ -64,16 +63,7 @@ export async function PUT(request: NextRequest) {
       workingHoursSchema.parse(entry)
     }
 
-    const config = await db.businessConfig.findFirst({
-      select: { id: true },
-    })
-
-    if (!config) {
-      return NextResponse.json(
-        { error: 'Configurazione non trovata' },
-        { status: 404 }
-      )
-    }
+    const config = await requireTenantConfig(request)
 
     // Upsert each day
     const results: Awaited<ReturnType<typeof db.workingHours.update>>[] = []
@@ -115,6 +105,9 @@ export async function PUT(request: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+    }
+    if (error instanceof Error && error.message === 'TenantNotFound') {
+      return NextResponse.json({ error: 'Negozio non trovato' }, { status: 404 })
     }
     if (error && typeof error === 'object' && 'issues' in error) {
       return NextResponse.json({ error: 'Dati non validi' }, { status: 400 })

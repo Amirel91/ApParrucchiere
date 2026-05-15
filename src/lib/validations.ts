@@ -39,8 +39,6 @@ export const configSchema = z.object({
   shopPhone: z.string().optional().default(''),
   shopEmail: z.string().email('Email non valida').optional().or(z.literal('')),
   shopAddress: z.string().optional().default(''),
-  businessType: z.string().default('parrucchiere'),
-  selectedImages: z.string().default('[]'),
   lunchBreakEnabled: z.boolean().default(false),
   lunchBreakStart: z.string().regex(/^\d{2}:\d{2}$/).default('12:30'),
   lunchBreakEnd: z.string().regex(/^\d{2}:\d{2}$/).default('14:00'),

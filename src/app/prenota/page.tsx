@@ -69,11 +69,34 @@ export default function PrenotaPage() {
     },
   })
 
+  const [rememberMe, setRememberMe] = useState(false)
+  const STORAGE_KEY = 'booking_remember'
+
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [dayAvailabilities, setDayAvailabilities] = useState<Record<string, AvailabilityLevel>>({})
   const [availableSlots, setAvailableSlots] = useState<string[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [closedDates, setClosedDates] = useState<string[]>([])
+
+  // Load remembered customer data on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        const data = JSON.parse(saved)
+        setBooking(prev => ({
+          ...prev,
+          customer: {
+            ...prev.customer,
+            customerName: data.customerName || '',
+            customerSurname: data.customerSurname || '',
+            customerPhone: data.customerPhone || '',
+          },
+        }))
+        setRememberMe(true)
+      }
+    } catch {}
+  }, [])
 
   // Fetch services on mount
   useEffect(() => {
@@ -559,6 +582,17 @@ export default function PrenotaPage() {
           />
           {formErrors.customerEmail && <p className="text-red-500 text-xs mt-1">{formErrors.customerEmail}</p>}
         </div>
+
+        {/* Ricordami checkbox */}
+        <label className="flex items-center gap-2 cursor-pointer pt-2">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={e => setRememberMe(e.target.checked)}
+            className="w-4 h-4 rounded border-stone-300 text-stone-900 focus:ring-stone-900"
+          />
+          <span className="text-sm text-stone-600">Ricordami per la prossima prenotazione</span>
+        </label>
       </div>
     </div>
   )
@@ -651,6 +685,19 @@ export default function PrenotaPage() {
       }
 
       setStep(4) // Success step
+
+      // Save or clear localStorage based on rememberMe
+      if (rememberMe) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            customerName: booking.customer.customerName,
+            customerSurname: booking.customer.customerSurname,
+            customerPhone: booking.customer.customerPhone,
+          }))
+        } catch {}
+      } else {
+        try { localStorage.removeItem(STORAGE_KEY) } catch {}
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore nella prenotazione')
     } finally {
