@@ -15,6 +15,57 @@ const registerSchema = z.object({
   password: z.string().min(6, 'Minimo 6 caratteri'),
 })
 
+const DOMAIN_BASE = 'intelligenda.it'
+
+/**
+ * Register a subdomain on Vercel via API so it routes to this project.
+ * Vercel doesn't support wildcard domains in the dashboard — each subdomain
+ * must be added individually.
+ */
+async function registerVercelDomain(subdomain: string): Promise<{ ok: boolean; msg: string }> {
+  const token = process.env.VERCEL_API_TOKEN
+  const projectId = process.env.VERCEL_PROJECT_ID
+
+  if (!token || !projectId) {
+    console.warn('[registerVercelDomain] VERCEL_API_TOKEN or VERCEL_PROJECT_ID not set — skipping domain registration')
+    return { ok: false, msg: 'VERCEL_API_TOKEN or VERCEL_PROJECT_ID not configured' }
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.vercel.com/v9/projects/${projectId}/domains`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: `${subdomain}.${DOMAIN_BASE}` }),
+      }
+    )
+
+    if (res.ok) {
+      console.log(`[registerVercelDomain] Registered ${subdomain}.${DOMAIN_BASE} on Vercel`)
+      return { ok: true, msg: 'Domain registered' }
+    }
+
+    const data = await res.json()
+    const errMsg = data.error?.message || data.message || `HTTP ${res.status}`
+    console.error(`[registerVercelDomain] Failed: ${errMsg}`)
+
+    // If domain already exists, that's fine — not a blocking error
+    if (res.status === 409 || errMsg.includes('already')) {
+      return { ok: true, msg: 'Domain already exists' }
+    }
+
+    return { ok: false, msg: errMsg }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`[registerVercelDomain] Error: ${msg}`)
+    return { ok: false, msg }
+  }
+}
+
 // GET /api/register?slug=xxx - Check slug availability
 export async function GET(request: NextRequest) {
   const slug = new URL(request.url).searchParams.get('slug')
@@ -27,7 +78,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ available: !existing })
 }
 
-// POST /api/register - Create new tenant + admin + config
+// POST /api/register - Create new tenant + admin + config + register domain on Vercel
 export async function POST(request: NextRequest) {
   try {
     await ensureDbSchema()
@@ -67,7 +118,7 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await hashPassword(data.password)
     await db.adminUser.create({
       data: {
-        username: data.slug, // Use slug as initial username
+        username: data.slug,
         password: hashedPassword,
         tenantId: tenant.id,
       },
@@ -86,11 +137,20 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Register subdomain on Vercel (non-blocking — tenant is created regardless)
+    const domainResult = await registerVercelDomain(data.slug)
+    if (!domainResult.ok) {
+      console.warn(
+        `[register] Tenant "${data.slug}" created but domain not registered on Vercel: ${domainResult.msg}`
+      )
+    }
+
     return NextResponse.json(
       {
         success: true,
         slug: data.slug,
-        url: `https://${data.slug}.intelligenda.it`,
+        url: `https://${data.slug}.${DOMAIN_BASE}`,
+        domainRegistered: domainResult.ok,
       },
       { status: 201 }
     )
