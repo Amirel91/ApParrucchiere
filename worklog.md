@@ -198,3 +198,21 @@ Stage Summary:
 - Login: intelligenda.it/superadmin/login
 - Requires SUPERADMIN_PASSWORD env var on Vercel
 - Pushed to https://github.com/Amirel91/Intelligenda.git (commit e584092)
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: Fix SuperAdmin dashboard "Errore nel caricamento dei tenant" after login
+
+Work Log:
+- Diagnosed the bug: the user could log in successfully (token returned), but the dashboard showed "Errore caricamento tenant: Errore nel caricamento dei tenant" on page load
+- Root cause: In the tenants API route (`/api/superadmin/tenants/route.ts`), the Prisma query used `_count.bookings` directly on the `Tenant` model. However, the Prisma schema has `Tenant → config (BusinessConfig) → bookings (Booking)` — there is NO direct `bookings` relation on `Tenant`. This caused a Prisma runtime error → 500 response → generic error shown to user
+- The stats API (`/api/superadmin/stats/route.ts`) worked fine because it uses direct `db.tenant.count()` and `db.booking.count()` — no relation traversal
+- Fix: Changed the tenants query to count bookings through the nested config relation: `config: { select: { id: true, _count: { select: { bookings: true } } } }` and mapped `t.config?._count?.bookings ?? 0` in the response
+- Only 1 file modified: `src/app/api/superadmin/tenants/route.ts`
+- Committed and pushed to GitHub (commit 4c5ebd9)
+
+Stage Summary:
+- Bug was a Prisma schema relation mismatch: `_count.bookings` on Tenant doesn't exist
+- Fixed by nesting the count through `config._count.bookings`
+- Previous 2 fix attempts (cookie → Bearer token) were misdirected — the auth was working fine, it was the data query that failed
