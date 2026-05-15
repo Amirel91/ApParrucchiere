@@ -12,17 +12,23 @@ export async function GET(request: NextRequest) {
     await requireSuperAdmin(request)
     await ensureDbSchema()
 
+    // Tenant has no direct 'bookings' relation — bookings live on BusinessConfig.
+    // We count bookings through the config relation.
     const tenants = await db.tenant.findMany({
       include: {
         _count: {
           select: {
-            bookings: true,
             admins: true,
           },
         },
         config: {
           select: {
             id: true,
+            _count: {
+              select: {
+                bookings: true,
+              },
+            },
           },
         },
       },
@@ -38,7 +44,7 @@ export async function GET(request: NextRequest) {
       active: t.active,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
-      bookingCount: t._count.bookings,
+      bookingCount: t.config?._count?.bookings ?? 0,
       adminCount: t._count.admins,
       hasConfig: !!t.config,
     }))
