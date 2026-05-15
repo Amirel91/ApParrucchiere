@@ -152,3 +152,26 @@ Stage Summary:
 - Flow: /t/test → middleware sets cookie + 302 redirect → / (cookie preserved) → page.tsx fetches /api/config → tenant found → shows homepage
 - To switch tenants on Vercel: visit /t/[other-slug]
 - No cookie = /api/config returns 404 = page.tsx redirects to /landing
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Full rebrand EazyAgenda → IntelliGenda (intelligenda.it)
+
+Work Log:
+- Searched entire src/ codebase for references to EazyAgenda, eazyagenda, segretariapp
+- Found references in: middleware.ts, tenant.ts, layout.tsx, landing/page.tsx, register/route.ts
+- Updated middleware.ts: MAIN_DOMAINS = ['intelligenda.it', 'www.intelligenda.it'], comments
+- Updated tenant.ts: MAIN_DOMAINS = ['intelligenda.it', 'www.intelligenda.it']
+- Updated layout.tsx: title = "IntelliGenda - L'agenda intelligente"
+- Rewrote landing page: Hero "IntelliGenda — L'agenda intelligente che pianifica al posto tuo.", new subtitle, .intelligenda.it domain display, footer copyright
+- Updated register API: url response → https://[slug].intelligenda.it
+- Changed git remote origin to https://github.com/Amirel91/Intelligenda.git
+- Verified zero remaining old brand references with grep
+- Committed and force-pushed to new repo
+
+Stage Summary:
+- Complete rebrand: EazyAgenda → IntelliGenda
+- New domain: intelligenda.it (subdomains: [slug].intelligenda.it)
+- All 6 files updated, 0 old references remaining
+- Pushed to https://github.com/Amirel91/Intelligenda.git (commit 4f47824)
