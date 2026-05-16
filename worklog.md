@@ -216,3 +216,31 @@ Stage Summary:
 - Bug was a Prisma schema relation mismatch: `_count.bookings` on Tenant doesn't exist
 - Fixed by nesting the count through `config._count.bookings`
 - Previous 2 fix attempts (cookie → Bearer token) were misdirected — the auth was working fine, it was the data query that failed
+
+---
+Task ID: 9
+Agent: Main Agent
+Task: Landing page — Hero CTA buttons + lead collection section
+
+Work Log:
+- Modified Hero section: replaced single CTA with two side-by-side buttons
+  - Primary: "Crea il tuo account" (solid bg-stone-900, shadow, links to #registrati)
+  - Secondary: "Blocca lo sconto di lancio" (ghost button, border outline, smooth scrolls to #sconto-lancio)
+- Added lead collection section at bottom (before footer):
+  - Dark background (bg-stone-900), MapPin icon, urgency copy about "prime 15 attività"
+  - Email input + "Blocca il mio sconto prioritario" button (high contrast white on dark)
+  - Clean success state with CheckCircle2 icon and "Posto bloccato!" message
+  - Scroll target via useRef + scrollIntoView({ behavior: 'smooth' })
+- Created /api/leads endpoint:
+  - POST validates email, creates Lead table on demand via ensureLeadTable()
+  - Uses ON CONFLICT DO NOTHING for idempotency (duplicate emails silently ignored)
+- Added ensureLeadTable() to db.ts:
+  - Creates Lead table (id, email, source, createdAt) + unique index on email
+  - Uses existing neonRawQuery() for DDL via Neon HTTP API
+- Committed and pushed (commit 4fd5ad1)
+
+Stage Summary:
+- 4 files modified/created (+190 lines)
+- Smooth scroll works on both desktop and mobile (React ref + scrollIntoView)
+- Lead collection is fully functional: email → /api/leads → PostgreSQL
+- No TypeScript errors in active source files
