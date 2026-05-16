@@ -135,6 +135,34 @@ async function neonRawQuery(connectionString: string, sql: string): Promise<{ ok
   }
 }
 
+// ============ LEAD TABLE (independent, created on demand) ============
+
+let _leadTableEnsured = false
+
+export async function ensureLeadTable(): Promise<void> {
+  if (_leadTableEnsured) return
+
+  const connectionString = process.env.DATABASE_URL
+  if (!connectionString) {
+    console.error('[ensureLeadTable] No DATABASE_URL')
+    return
+  }
+
+  await neonRawQuery(connectionString, `CREATE TABLE IF NOT EXISTS "Lead" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "email" TEXT NOT NULL,
+    "source" TEXT NOT NULL DEFAULT 'launch-discount',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`)
+
+  await neonRawQuery(connectionString, `CREATE UNIQUE INDEX IF NOT EXISTS "Lead_email_key" ON "Lead"("email")`)
+
+  _leadTableEnsured = true
+  console.log('[ensureLeadTable] Lead table ready')
+}
+
+// ============ MAIN SCHEMA ENSURE ============
+
 let _schemaEnsured = false
 
 export async function ensureDbSchema(): Promise<{ ok: boolean; results: string[] }> {

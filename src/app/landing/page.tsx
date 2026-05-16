@@ -16,6 +16,9 @@ import {
   Loader2,
   X,
   Sparkles,
+  MapPin,
+  Send,
+  CheckCircle2,
 } from 'lucide-react'
 
 // ==================== FORM STATE ====================
@@ -37,6 +40,9 @@ export default function LandingPage() {
   const getTenantUrl = (slug: string) => isVercelDomain ? `${baseUrl}/t/${slug}` : `https://${slug}.intelligenda.it`
   const getAdminUrl = (slug: string) => isVercelDomain ? `${baseUrl}/t/${slug}/admin/login` : `https://${slug}.intelligenda.it/admin/login`
 
+  // Ref for smooth scroll to lead section
+  const scontoRef = useRef<HTMLElement>(null)
+
   // Registration form state
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -45,6 +51,12 @@ export default function LandingPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [serverError, setServerError] = useState('')
+
+  // Lead form state
+  const [leadEmail, setLeadEmail] = useState('')
+  const [leadSubmitting, setLeadSubmitting] = useState(false)
+  const [leadSuccess, setLeadSuccess] = useState(false)
+  const [leadError, setLeadError] = useState('')
 
   // Slug availability check (debounced)
   const slugTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -191,12 +203,24 @@ export default function LandingPage() {
           Automatizza le prenotazioni della tua attività. Il nostro algoritmo smart calcola i tempi dei servizi
           e incastra gli appuntamenti alla perfezione, azzerando i tempi morti.
         </p>
-        <a
-          href="#registrati"
-          className="mt-8 inline-flex items-center gap-2 px-8 py-4 bg-stone-900 text-white rounded-2xl text-lg font-medium hover:bg-stone-800 transition-colors"
-        >
-          Crea il tuo account <ArrowRight className="w-5 h-5" />
-        </a>
+        {/* Two CTA buttons */}
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+          <a
+            href="#registrati"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-stone-900 text-white rounded-2xl text-lg font-medium hover:bg-stone-800 transition-colors shadow-lg shadow-stone-900/20"
+          >
+            Crea il tuo account <ArrowRight className="w-5 h-5" />
+          </a>
+          <button
+            type="button"
+            onClick={() => {
+              scontoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }}
+            className="inline-flex items-center gap-2 px-8 py-4 border-2 border-stone-300 text-stone-700 rounded-2xl text-lg font-medium hover:border-stone-900 hover:text-stone-900 transition-colors"
+          >
+            Blocca lo sconto di lancio
+          </button>
+        </div>
       </section>
 
       {/* ==================== PUNTI DI FORZA ==================== */}
@@ -451,6 +475,97 @@ export default function LandingPage() {
               )}
             </button>
           </form>
+        </div>
+      </section>
+
+      {/* ==================== SCONTO LANCIO (Lead Collection) ==================== */}
+      <section
+        id="sconto-lancio"
+        ref={scontoRef}
+        className="py-20 px-6 bg-stone-900 text-white scroll-mt-0"
+      >
+        <div className="max-w-lg mx-auto text-center">
+          <div className="mx-auto mb-5 w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center">
+            <MapPin className="w-6 h-6 text-white" />
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-3">
+            IntelliGenda arriva nella tua zona.
+          </h2>
+          <p className="text-stone-400 text-sm sm:text-base leading-relaxed mb-8">
+            Stiamo selezionando le prime 15 attività sul territorio a cui offrire una prova gratuita e
+            l&apos;assistenza all&apos;installazione a costo zero. Lascia la tua email per bloccare il tuo
+            posto prioritario e ricevere il coupon per il primo mese scontato.
+          </p>
+
+          {leadSuccess ? (
+            <div className="flex items-center justify-center gap-3 py-4">
+              <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+              <p className="text-emerald-400 text-lg font-medium">
+                Posto bloccato! Ti contatteremo a breve.
+              </p>
+            </div>
+          ) : (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                setLeadError('')
+                if (!leadEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadEmail.trim())) {
+                  setLeadError('Inserisci un&apos;email valida')
+                  return
+                }
+                setLeadSubmitting(true)
+                try {
+                  const res = await fetch('/api/leads', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: leadEmail.trim() }),
+                  })
+                  const data = await res.json()
+                  if (!res.ok) {
+                    setLeadError(data.error || 'Errore. Riprova.')
+                    return
+                  }
+                  setLeadSuccess(true)
+                } catch {
+                  setLeadError('Errore di connessione. Riprova.')
+                } finally {
+                  setLeadSubmitting(false)
+                }
+              }}
+              className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
+            >
+              <div className="flex-1 relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
+                <input
+                  type="email"
+                  value={leadEmail}
+                  onChange={(e) => { setLeadEmail(e.target.value); setLeadError('') }}
+                  placeholder="La tua email"
+                  className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder-stone-500 outline-none focus:border-white/50 transition-colors"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={leadSubmitting}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-stone-900 rounded-xl font-medium hover:bg-stone-100 disabled:opacity-50 transition-colors whitespace-nowrap"
+              >
+                {leadSubmitting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+                Blocca il mio sconto prioritario
+              </button>
+            </form>
+          )}
+
+          {leadError && !leadSuccess && (
+            <p className="mt-3 text-sm text-red-400">{leadError}</p>
+          )}
+
+          <p className="mt-6 text-xs text-stone-600">
+            Niente spam. Solo una comunicazione quando saremo pronti per la tua zona.
+          </p>
         </div>
       </section>
 
