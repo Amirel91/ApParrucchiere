@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
-import { getTenantSlugFromRequest } from '@/lib/tenant'
+import { resolveTenantSlug } from '@/lib/tenant'
 
 /**
  * POST /api/billing/cancel
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   try {
     await ensureDbSchema()
 
-    const slug = getTenantSlugFromRequest(request)
+    const slug = resolveTenantSlug(request)
     if (!slug) {
       return NextResponse.json({ error: 'Tenant non trovato' }, { status: 404 })
     }

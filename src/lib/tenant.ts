@@ -13,6 +13,23 @@ export function getTenantSlugFromRequest(request: NextRequest): string | null {
 }
 
 /**
+ * Resolve tenant slug from request — tries cookie first, then ?slug= query param.
+ * Used by billing API routes that may be called from the main domain (/account)
+ * where the tenant_slug cookie is not set by the proxy.
+ */
+export function resolveTenantSlug(request: NextRequest): string | null {
+  // 1. Try cookie (set by proxy on subdomain requests)
+  const fromCookie = getTenantSlugFromRequest(request)
+  if (fromCookie) return fromCookie
+
+  // 2. Try ?slug= query parameter (used by /account on main domain)
+  const fromQuery = new URL(request.url).searchParams.get('slug')
+  if (fromQuery) return fromQuery
+
+  return null
+}
+
+/**
  * Get tenant slug from cookies (for server components)
  */
 export async function getTenantSlugFromCookies(): Promise<string | null> {

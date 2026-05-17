@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
-import { getTenantSlugFromRequest } from '@/lib/tenant'
+import { resolveTenantSlug } from '@/lib/tenant'
 
 /**
- * GET /api/billing/status
+ * GET /api/billing/status?slug=xxx
  * Returns the subscription status for the current tenant.
+ * Accepts slug via cookie (subdomain) or ?slug= query param (main domain /account).
  */
 export async function GET(request: NextRequest) {
   try {
     await ensureDbSchema()
 
-    const slug = getTenantSlugFromRequest(request)
+    const slug = resolveTenantSlug(request)
     if (!slug) {
       return NextResponse.json({ error: 'Tenant non trovato' }, { status: 404 })
     }

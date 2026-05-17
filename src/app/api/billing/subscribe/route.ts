@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
-import { getTenantSlugFromRequest } from '@/lib/tenant'
-// SignJWT imported for future token generation if needed
+import { resolveTenantSlug } from '@/lib/tenant'
 
 /**
  * POST /api/billing/subscribe
@@ -63,7 +62,7 @@ export async function POST(request: NextRequest) {
   try {
     await ensureDbSchema()
 
-    const slug = getTenantSlugFromRequest(request)
+    const slug = resolveTenantSlug(request)
     if (!slug) {
       return NextResponse.json({ error: 'Tenant non trovato' }, { status: 404 })
     }

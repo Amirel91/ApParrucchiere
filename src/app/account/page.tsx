@@ -11,11 +11,13 @@ import {
   Loader2,
   X,
   ArrowLeft,
+  ArrowRight,
   Shield,
   Sparkles,
   Info,
+  CalendarDays,
+  LogIn,
 } from 'lucide-react'
-import Link from 'next/link'
 
 // ==================== TYPES ====================
 
@@ -97,12 +99,29 @@ function AccountContent() {
   const [customReason, setCustomReason] = useState('')
   const [cancelError, setCancelError] = useState('')
 
+  // Get slug from query params (set by /login redirect)
+  const slug = searchParams.get('slug') || ''
+  const isVercelDomain = typeof window !== 'undefined' && window.location.hostname.endsWith('.vercel.app')
+  const getAgendaUrl = () => isVercelDomain
+    ? `/t/${slug}/admin/login`
+    : `https://${slug}.intelligenda.it/admin/login`
+
+  // ==================== AUTH GUARD ====================
+
+  useEffect(() => {
+    if (!slug) {
+      // No slug in URL — redirect to login
+      router.replace('/login')
+    }
+  }, [slug, router])
+
   // ==================== FETCH SUBSCRIPTION ====================
 
   const fetchSubscription = useCallback(async () => {
+    if (!slug) return
     try {
       setLoading(true)
-      const res = await fetch('/api/billing/status')
+      const res = await fetch(`/api/billing/status?slug=${encodeURIComponent(slug)}`)
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         setError(data.error || 'Errore nel caricamento')
@@ -115,11 +134,11 @@ function AccountContent() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [slug])
 
   useEffect(() => {
-    fetchSubscription()
-  }, [fetchSubscription])
+    if (slug) fetchSubscription()
+  }, [slug, fetchSubscription])
 
   // ==================== HANDLE BILLING CALLBACK ====================
 
@@ -133,10 +152,9 @@ function AccountContent() {
       } else if (result === 'ko') {
         setMessage('Il pagamento non e andato a buon fine. Riprova.')
       }
-      // Clean URL
-      router.replace('/account', { scroll: false })
+      router.replace(`/account?slug=${slug}`, { scroll: false })
     }
-  }, [searchParams, router, fetchSubscription])
+  }, [searchParams, router, fetchSubscription, slug])
 
   // ==================== SUBSCRIBE ====================
 
@@ -144,7 +162,7 @@ function AccountContent() {
     setSubscribing(true)
     setError('')
     try {
-      const res = await fetch('/api/billing/subscribe', { method: 'POST' })
+      const res = await fetch(`/api/billing/subscribe?slug=${encodeURIComponent(slug)}`, { method: 'POST' })
       const data = await res.json()
 
       if (!res.ok) {
@@ -156,7 +174,6 @@ function AccountContent() {
         setMessage(data.message)
         fetchSubscription()
       } else if (data.paymentUrl) {
-        // Redirect to Nexi payment page
         window.location.href = data.paymentUrl
       } else if (data.subscription) {
         setMessage('Abbonamento attivato con successo!')
@@ -181,7 +198,7 @@ function AccountContent() {
     setCancelError('')
 
     try {
-      const res = await fetch('/api/billing/cancel', {
+      const res = await fetch(`/api/billing/cancel?slug=${encodeURIComponent(slug)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -232,6 +249,10 @@ function AccountContent() {
 
   // ==================== RENDER ====================
 
+  if (!slug) {
+    return null
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
@@ -244,21 +265,27 @@ function AccountContent() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* ============ HEADER ============ */}
-      <header className="bg-white border-b border-stone-200">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
-          <button
-            onClick={() => router.back()}
-            className="p-2 rounded-lg text-stone-500 hover:bg-stone-100 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-lg font-bold text-stone-900">Il mio Account</h1>
-            {subscription?.businessName && (
-              <p className="text-xs text-stone-400">{subscription.businessName}</p>
-            )}
+      {/* ============ HEADER / NAVBAR ============ */}
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-30">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <a href="/landing" className="p-2 rounded-lg text-stone-500 hover:bg-stone-100 transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </a>
+            <div>
+              <h1 className="text-lg font-bold text-stone-900">Il mio Account</h1>
+              {subscription?.businessName && (
+                <p className="text-xs text-stone-400">{subscription.businessName}</p>
+              )}
+            </div>
           </div>
+          <button
+            onClick={() => router.push('/login')}
+            className="p-2 rounded-lg text-stone-400 hover:bg-stone-100 hover:text-stone-600 transition-colors"
+            title="Esci"
+          >
+            <LogIn className="w-5 h-5" />
+          </button>
         </div>
       </header>
 
@@ -277,6 +304,31 @@ function AccountContent() {
         {error && !subscription && (
           <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>
         )}
+
+        {/* ============ GESTISCI LA TUA AGENDA (HIGH CONTRAST) ============ */}
+        <a
+          href={getAgendaUrl()}
+          className="block group"
+        >
+          <div className="bg-stone-900 rounded-2xl p-6 flex items-center justify-between hover:bg-stone-800 transition-colors shadow-lg shadow-stone-900/20">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center">
+                <CalendarDays className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-white">Gestisci la tua Agenda</h2>
+                <p className="text-sm text-stone-400 mt-0.5">
+                  {isVercelDomain
+                    ? `Vai al pannello operativo di ${slug}`
+                    : `${slug}.intelligenda.it`}
+                </p>
+              </div>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
+              <ArrowRight className="w-5 h-5 text-white" />
+            </div>
+          </div>
+        </a>
 
         {/* ============ SUBSCRIPTION CARD ============ */}
         {subscription && (
@@ -453,6 +505,15 @@ function AccountContent() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-stone-400">Nome attivita</span>
                 <span className="text-stone-900 font-medium">{subscription.businessName}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-stone-400">Indirizzo web</span>
+                <a
+                  href={isVercelDomain ? `/t/${slug}` : `https://${slug}.intelligenda.it`}
+                  className="text-stone-900 font-medium hover:underline underline-offset-2"
+                >
+                  {slug}.intelligenda.it
+                </a>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-stone-400">Data creazione</span>
