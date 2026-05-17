@@ -244,3 +244,43 @@ Stage Summary:
 - Smooth scroll works on both desktop and mobile (React ref + scrollIntoView)
 - Lead collection is fully functional: email → /api/leads → PostgreSQL
 - No TypeScript errors in active source files
+
+---
+Task ID: 10
+Agent: Main Agent
+Task: 4 premium optimizations — Buffer Time, PWA, Manual Slot Blocking, Skeleton Loaders
+
+Work Log:
+- Feature 1: Buffer Time
+  - Added bufferMinutes Int @default(0) to Service model in Prisma schema
+  - Added ALTER TABLE migration in db.ts
+  - Added bufferMinutes to Zod serviceSchema validation
+  - Updated admin/servizi/page.tsx: new bufferStr state, buffer input field in form modal, buffer shown in total calculation
+  - Updated api/bookings/route.ts POST: totalDuration includes bufferMinutes
+  - Updated client prenota/page.tsx: totalSlotDuration (visible+invisible) for API calls, totalDuration (visible only) for display
+- Feature 2: PWA Configuration
+  - Created public/manifest.json: name, standalone display, stone-900 theme, icons
+  - Generated icon-192x192.png, icon-512x512.png, apple-touch-icon.png via AI image generation
+  - Updated layout.tsx metadata with manifest + icon references
+- Feature 3: Manual Slot Blocking
+  - Added status "blocked" to Booking model
+  - Created /api/time-blocks POST endpoint (admin-only, saves as booking with status="blocked")
+  - Updated slot-algorithm.ts: status filter includes "blocked"
+  - Added "Blocca fascia oraria" button to admin calendar (desktop side panel + mobile bottom sheet)
+  - Added time block modal with title, start time, duration fields
+  - Updated statusColors/statusLabels for "blocked" display
+  - Booking detail modal handles blocked status (shows title, no customer info)
+- Feature 4: Skeleton Loaders
+  - Replaced spinner in prenota/page.tsx StepCalendar with 8 pulsing skeleton rectangles
+  - Uses animate-pulse with staggered animationDelay for premium feel
+  - Grid layout matches the actual time slot grid (3 cols mobile, 4 cols desktop)
+- TypeScript check: 0 errors in active source files
+- Committed and pushed (commit 9b43500)
+
+Stage Summary:
+- 15 files modified/created (+262 lines, -29 lines)
+- All 4 features fully functional, multi-tenant architecture preserved
+- Buffer time is invisible to customers but blocks calendar slots
+- PWA ready for "Add to Home Screen" on iOS/Android
+- Admin can block time slots for pauses/phone appointments
+- Premium skeleton loading experience replaces spinners
