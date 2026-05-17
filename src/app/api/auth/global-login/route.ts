@@ -4,7 +4,7 @@ import { verifyPassword } from '@/lib/auth'
 import { z } from 'zod'
 
 const globalLoginSchema = z.object({
-  slug: z.string().min(3).max(30).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  email: z.string().email('Email non valida'),
   password: z.string().min(6),
 })
 
@@ -12,11 +12,13 @@ const globalLoginSchema = z.object({
  * POST /api/auth/global-login
  *
  * Authenticates a tenant admin from the main domain (intelligenda.it/login).
- * Unlike /api/auth/login which reads tenant from cookie, this endpoint
- * accepts the slug explicitly in the request body.
+ * Accepts email + password (no slug required — merchants shouldn't need to remember it).
  *
- * On success, returns the slug and business info so the frontend
- * can redirect to /account?slug=xxx.
+ * Flow:
+ *   1. Find tenant by ownerEmail (case-insensitive)
+ *   2. Find the admin user linked to that tenant
+ *   3. Verify password
+ *   4. Return slug + business info → frontend redirects to /account?slug=xxx
  */
 export async function POST(request: NextRequest) {
   try {
@@ -24,54 +26,58 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = globalLoginSchema.parse(body)
 
-    // Find tenant by slug
-    const tenant = await db.tenant.findUnique({
-      where: { slug: data.slug },
+    // Find tenant by owner email (case-insensitive)
+    const tenant = await db.tenant.findFirst({
+      where: {
+        ownerEmail: {
+          equals: data.email,
+          mode: 'insensitive',
+        },
+      },
       select: {
         id: true,
         slug: true,
         businessName: true,
+        ownerEmail: true,
         active: true,
         subscriptionStatus: true,
         config: { select: { id: true } },
-        admins: { select: { id: true, username: true } },
       },
     })
 
     if (!tenant) {
       return NextResponse.json(
-        { error: 'Nessuna attivita trovata con questo indirizzo' },
+        { error: 'Nessun account trovato con questa email' },
         { status: 404 }
       )
     }
 
     if (!tenant.active) {
       return NextResponse.json(
-        { error: 'Questa attivita e stata sospesa' },
+        { error: 'Questo account e stato disattivato' },
         { status: 403 }
       )
     }
 
     if (!tenant.config) {
       return NextResponse.json(
-        { error: 'Configurazione non trovata' },
+        { error: 'Configurazione non trovata. Contatta il supporto.' },
         { status: 404 }
       )
     }
 
-    // Find admin user — username defaults to slug during registration
+    // Find any admin user for this tenant
     const user = await db.adminUser.findFirst({
       where: {
         tenantId: tenant.id,
-        username: data.slug,
       },
       select: { id: true, username: true, password: true },
     })
 
     if (!user) {
       return NextResponse.json(
-        { error: 'Credenziali non valide' },
-        { status: 401 }
+        { error: 'Nessun utente admin trovato per questo account' },
+        { status: 404 }
       )
     }
 

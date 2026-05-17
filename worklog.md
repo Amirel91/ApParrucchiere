@@ -31,3 +31,22 @@ Stage Summary:
 - Tenant access automatically blocked when subscription expires (via tenant.ts)
 - Files created: 4 API routes, 1 page component
 - Files modified: schema.prisma, db.ts, tenant.ts, superadmin page, superadmin tenants API, superadmin stats API, register route
+
+---
+Task ID: 1
+Agent: main
+Task: Remove slug field from global login, switch to email+password only
+
+Work Log:
+- Read current login page, global-login API, Prisma schema, and account page
+- Identified architecture: AdminUser has username (no email), Tenant has ownerEmail
+- Modified `/api/auth/global-login/route.ts`: changed schema from {slug, password} to {email, password}, lookup tenant by ownerEmail (case-insensitive), find admin user for that tenant, verify password, return slug
+- Modified `/login/page.tsx`: removed slug input field (Globe icon, slug formatting, .intelligenda.it suffix), replaced with email input field (Mail icon, standard email validation, autoComplete="email"), kept password field unchanged
+- Account page already has "Gestisci la tua Agenda" button linking to shop dashboard — no changes needed
+- Build passed successfully
+
+Stage Summary:
+- Login now requires only Email + Password (no slug memorization needed)
+- Backend finds tenant by ownerEmail, retrieves admin, verifies password, returns slug
+- Frontend redirects to /account?slug=xxx after successful authentication
+- Files modified: src/app/api/auth/global-login/route.ts, src/app/login/page.tsx

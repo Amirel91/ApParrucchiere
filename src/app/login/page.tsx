@@ -2,22 +2,22 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LogIn, ArrowLeft, Loader2, Globe, Lock, Eye, EyeOff } from 'lucide-react'
+import { LogIn, ArrowLeft, Loader2, Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 /**
  * Global Login Page — /login
  *
  * Authenticates tenant admins from the main domain.
- * On success, redirects to /account?slug=xxx (commercial account).
+ * Only Email + Password required — no slug needed.
  *
  * Flow:
- *   1. User enters subdomain slug + password
- *   2. POST /api/auth/global-login → verify credentials
+ *   1. User enters email + password
+ *   2. POST /api/auth/global-login → server finds tenant by email, verifies password
  *   3. Redirect to /account?slug=xxx (billing, subscription, agenda link)
  */
 export default function GlobalLoginPage() {
   const router = useRouter()
-  const [slug, setSlug] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -27,9 +27,9 @@ export default function GlobalLoginPage() {
     e.preventDefault()
     setError('')
 
-    const cleanSlug = slug.trim().toLowerCase()
-    if (!cleanSlug || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(cleanSlug)) {
-      setError('Inserisci un indirizzo valido (es. barberia-rock)')
+    const cleanEmail = email.trim().toLowerCase()
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError('Inserisci un indirizzo email valido')
       return
     }
     if (!password || password.length < 6) {
@@ -42,7 +42,7 @@ export default function GlobalLoginPage() {
       const res = await fetch('/api/auth/global-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: cleanSlug, password }),
+        body: JSON.stringify({ email: cleanEmail, password }),
       })
 
       const data = await res.json()
@@ -53,7 +53,7 @@ export default function GlobalLoginPage() {
       }
 
       // Success → redirect to /account with the tenant slug
-      router.push(`/account?slug=${cleanSlug}`)
+      router.push(`/account?slug=${data.slug}`)
     } catch {
       setError('Errore di connessione. Riprova.')
     } finally {
@@ -83,24 +83,22 @@ export default function GlobalLoginPage() {
             </div>
           )}
 
-          {/* Slug field */}
+          {/* Email field */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
-              Indirizzo della tua attivita
+              Email
             </label>
             <div className="relative">
-              <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
               <input
-                type="text"
-                value={slug}
-                onChange={(e) => { setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); setError('') }}
-                placeholder="barberia-rock"
-                className="w-full pl-11 pr-40 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors"
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError('') }}
+                placeholder="nome@esempio.com"
+                className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors"
                 autoFocus
+                autoComplete="email"
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-stone-400 pointer-events-none">
-                .intelligenda.it
-              </div>
             </div>
           </div>
 
@@ -117,6 +115,7 @@ export default function GlobalLoginPage() {
                 onChange={(e) => { setPassword(e.target.value); setError('') }}
                 placeholder="Inserisci la password"
                 className="w-full pl-11 pr-11 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors"
+                autoComplete="current-password"
               />
               <button
                 type="button"
@@ -131,7 +130,7 @@ export default function GlobalLoginPage() {
           {/* Submit */}
           <button
             type="submit"
-            disabled={loading || !slug.trim() || !password}
+            disabled={loading || !email.trim() || !password}
             className="w-full py-3.5 rounded-xl bg-stone-900 text-white font-medium flex items-center justify-center gap-2 hover:bg-stone-800 disabled:opacity-50 transition-all"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
