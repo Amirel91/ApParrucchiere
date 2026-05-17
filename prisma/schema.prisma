@@ -58,6 +58,7 @@ model Service {
   price           Float
   durationMinutes Int
   cleanupMinutes  Int             @default(0)
+  bufferMinutes   Int             @default(0)
   active          Boolean         @default(true)
   sortOrder       Int             @default(0)
 
@@ -81,7 +82,7 @@ model Booking {
   startTime       DateTime
   endTime         DateTime
   totalPrice      Float
-  status          String          @default("confirmed") // confirmed, pending, cancelled
+  status          String          @default("confirmed") // confirmed, pending, cancelled, blocked
 
   configId        String
   config          BusinessConfig  @relation(fields: [configId], references: [id], onDelete: Cascade)

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronLeft, ChevronRight, X, Phone, Mail, Clock, Euro, User,
-  CalendarX, CalendarCheck, Printer, Trash2, Plus, Calendar, List,
+  CalendarX, CalendarCheck, Printer, Trash2, Plus, Calendar, List, Lock,
 } from 'lucide-react'
 
 interface BookingWithServices {
@@ -43,6 +43,13 @@ export default function AdminCalendario() {
   const [closeReason, setCloseReason] = useState('')
   const [closingDate, setClosingDate] = useState('')
   const [closeSaving, setCloseSaving] = useState(false)
+
+  // Time block modal state
+  const [blockModal, setBlockModal] = useState(false)
+  const [blockTitle, setBlockTitle] = useState('')
+  const [blockTime, setBlockTime] = useState('')
+  const [blockDuration, setBlockDuration] = useState('30')
+  const [blockSaving, setBlockSaving] = useState(false)
 
   const fetchMonthData = () => {
     const year = currentMonth.getFullYear()
@@ -152,8 +159,8 @@ export default function AdminCalendario() {
     finally { setDeleting(false) }
   }
 
-  const statusColors: Record<string, string> = { confirmed: 'bg-emerald-100 text-emerald-700', pending: 'bg-amber-100 text-amber-700', cancelled: 'bg-red-100 text-red-700' }
-  const statusLabels: Record<string, string> = { confirmed: 'Confermata', pending: 'In attesa', cancelled: 'Annullata' }
+  const statusColors: Record<string, string> = { confirmed: 'bg-emerald-100 text-emerald-700', pending: 'bg-amber-100 text-amber-700', cancelled: 'bg-red-100 text-red-700', blocked: 'bg-stone-200 text-stone-600' }
+  const statusLabels: Record<string, string> = { confirmed: 'Confermata', pending: 'In attesa', cancelled: 'Annullata', blocked: 'Bloccato' }
 
   if (loading) {
     return (<div className="flex items-center justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-stone-300 border-t-stone-900 rounded-full" /></div>)
@@ -304,13 +311,22 @@ export default function AdminCalendario() {
             {selectedDate && (
               <button
                 onClick={() => handleToggleCloseDay(selectedDate)}
-                className={`w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                className={`w-full mb-2 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
                   isDateClosed(selectedDate)
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
                     : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
                 }`}
               >
                 {isDateClosed(selectedDate) ? (<><CalendarCheck className="w-4 h-4" /> Riapri giornata</>) : (<><CalendarX className="w-4 h-4" /> Chiudi giornata</>)}
+              </button>
+            )}
+
+            {selectedDate && !isDateClosed(selectedDate) && (
+              <button
+                onClick={() => { setBlockTitle(''); setBlockTime('09:00'); setBlockDuration('30'); setBlockModal(true) }}
+                className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-stone-100 text-stone-700 border border-stone-200 hover:bg-stone-200 transition-all"
+              >
+                <Lock className="w-4 h-4" /> Blocca fascia oraria
               </button>
             )}
 
@@ -466,7 +482,7 @@ export default function AdminCalendario() {
               <div className="px-4 pb-3">
                 <button
                   onClick={() => handleToggleCloseDay(selectedDate)}
-                  className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  className={`w-full mb-2 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
                     isDateClosed(selectedDate)
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
                       : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
@@ -474,6 +490,14 @@ export default function AdminCalendario() {
                 >
                   {isDateClosed(selectedDate) ? (<><CalendarCheck className="w-4 h-4" /> Riapri giornata</>) : (<><CalendarX className="w-4 h-4" /> Chiudi giornata</>)}
                 </button>
+                {!isDateClosed(selectedDate) && (
+                  <button
+                    onClick={() => { setBlockTitle(''); setBlockTime('09:00'); setBlockDuration('30'); setBlockModal(true) }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-stone-100 text-stone-700 border border-stone-200 hover:bg-stone-200 transition-all"
+                  >
+                    <Lock className="w-4 h-4" /> Blocca fascia oraria
+                  </button>
+                )}
               </div>
 
               {/* Closed reason */}
@@ -581,11 +605,17 @@ export default function AdminCalendario() {
                 <div className="flex items-start gap-3 text-stone-700">
                   <User className="w-5 h-5 text-stone-400 shrink-0 mt-0.5" />
                   <div className="min-w-0">
-                    <div className="font-medium">{selectedBooking.customerName} {selectedBooking.customerSurname}</div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-stone-500 mt-0.5">
-                      <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedBooking.customerPhone}</span>
-                      {selectedBooking.customerEmail && (<span className="flex items-center gap-1 break-all"><Mail className="w-3 h-3" /> {selectedBooking.customerEmail}</span>)}
-                    </div>
+                    {selectedBooking.status === 'blocked' ? (
+                      <div className="font-medium">{selectedBooking.customerName}</div>
+                    ) : (
+                      <>
+                        <div className="font-medium">{selectedBooking.customerName} {selectedBooking.customerSurname}</div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-stone-500 mt-0.5">
+                          <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedBooking.customerPhone}</span>
+                          {selectedBooking.customerEmail && (<span className="flex items-center gap-1 break-all"><Mail className="w-3 h-3" /> {selectedBooking.customerEmail}</span>)}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -614,6 +644,93 @@ export default function AdminCalendario() {
                     <button onClick={() => setDeleteConfirm(selectedBooking.id)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 text-sm font-medium transition-colors"><Trash2 className="w-4 h-4" />Elimina prenotazione</button>
                   )}
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Time Block Modal */}
+      <AnimatePresence>
+        {blockModal && selectedDate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-2 sm:p-4"
+            onClick={() => setBlockModal(false)}
+          >
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-t-2xl sm:rounded-2xl max-w-sm w-full p-4 sm:p-6 shadow-xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-stone-900">Blocca fascia oraria</h2>
+                <button onClick={() => setBlockModal(false)} className="p-2 rounded-lg hover:bg-stone-100"><X className="w-5 h-5" /></button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">Titolo *</label>
+                  <input
+                    type="text"
+                    value={blockTitle}
+                    onChange={e => setBlockTitle(e.target.value)}
+                    placeholder="es. Pausa pranzo, Appuntamento telefonico"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1.5">Ora inizio</label>
+                    <input
+                      type="time"
+                      value={blockTime}
+                      onChange={e => setBlockTime(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 outline-none focus:border-stone-900 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1.5">Durata (min)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={blockDuration}
+                      onChange={e => setBlockDuration(e.target.value)}
+                      placeholder="30"
+                      className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button onClick={() => setBlockModal(false)} className="flex-1 py-3 rounded-xl border border-stone-200 text-stone-700 font-medium hover:bg-stone-50 transition-colors">Annulla</button>
+                <button
+                  onClick={async () => {
+                    if (!blockTitle.trim()) return
+                    setBlockSaving(true)
+                    try {
+                      const res = await fetch('/api/time-blocks', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: blockTitle.trim(), date: selectedDate, startTime: blockTime, durationMinutes: parseInt(blockDuration) || 30 }),
+                      })
+                      if (!res.ok) { const d = await res.json(); alert(d.error || 'Errore'); return }
+                      setBlockModal(false)
+                      fetchMonthData()
+                    } catch { alert('Errore di connessione') }
+                    finally { setBlockSaving(false) }
+                  }}
+                  disabled={blockSaving || !blockTitle.trim()}
+                  className="flex-1 py-3 rounded-xl bg-stone-900 text-white font-medium hover:bg-stone-800 disabled:opacity-50 transition-colors"
+                >
+                  {blockSaving ? 'Salvataggio...' : 'Blocca'}
+                </button>
               </div>
             </motion.div>
           </motion.div>

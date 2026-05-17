@@ -11,6 +11,7 @@ interface Service {
   price: number
   durationMinutes: number
   cleanupMinutes: number
+  bufferMinutes: number
   active: boolean
   sortOrder: number
 }
@@ -21,6 +22,7 @@ const emptyForm = {
   price: 0,
   durationMinutes: 30,
   cleanupMinutes: 0,
+  bufferMinutes: 0,
   active: true,
   sortOrder: 0,
 }
@@ -35,6 +37,7 @@ export default function AdminServizi() {
   const [priceStr, setPriceStr] = useState('0')
   const [durationStr, setDurationStr] = useState('30')
   const [cleanupStr, setCleanupStr] = useState('0')
+  const [bufferStr, setBufferStr] = useState('0')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -49,7 +52,7 @@ export default function AdminServizi() {
 
   const openNew = () => {
     setForm({ ...emptyForm, sortOrder: services.length + 1 })
-    setPriceStr('0'); setDurationStr('30'); setCleanupStr('0')
+    setPriceStr('0'); setDurationStr('30'); setCleanupStr('0'); setBufferStr('0')
     setEditingId(null); setShowForm(true); setError('')
   }
 
@@ -60,10 +63,11 @@ export default function AdminServizi() {
       price: s.price,
       durationMinutes: s.durationMinutes,
       cleanupMinutes: s.cleanupMinutes || 0,
+      bufferMinutes: s.bufferMinutes || 0,
       active: s.active,
       sortOrder: s.sortOrder,
     })
-    setPriceStr(String(s.price)); setDurationStr(String(s.durationMinutes)); setCleanupStr(String(s.cleanupMinutes || 0))
+    setPriceStr(String(s.price)); setDurationStr(String(s.durationMinutes)); setCleanupStr(String(s.cleanupMinutes || 0)); setBufferStr(String(s.bufferMinutes || 0))
     setEditingId(s.id); setShowForm(true); setError('')
   }
 
@@ -73,7 +77,8 @@ export default function AdminServizi() {
     const finalPrice = priceStr === '' ? 0 : parseFloat(priceStr) || 0
     const finalDuration = durationStr === '' ? 5 : parseInt(durationStr) || 5
     const finalCleanup = cleanupStr === '' ? 0 : parseInt(cleanupStr) || 0
-    const payload = { ...form, price: finalPrice, durationMinutes: finalDuration, cleanupMinutes: finalCleanup }
+    const finalBuffer = bufferStr === '' ? 0 : parseInt(bufferStr) || 0
+    const payload = { ...form, price: finalPrice, durationMinutes: finalDuration, cleanupMinutes: finalCleanup, bufferMinutes: finalBuffer }
     setSaving(true); setError('')
     try {
       const url = editingId ? `/api/services/${editingId}` : '/api/services'
@@ -204,10 +209,19 @@ export default function AdminServizi() {
                     Tempo pulizia/organizzazione (min)
                   </label>
                   <input type="text" inputMode="numeric" value={cleanupStr} onChange={e => { setCleanupStr(e.target.value); setForm(prev => ({ ...prev, cleanupMinutes: parseInt(e.target.value) || 0 })) }} placeholder="0" className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors" />
-                  <p className="text-xs text-stone-400 mt-1">Tempo aggiuntivo per pulizia/organizzazione dopo il servizio. Si somma alla durata per il calcolo degli slot disponibili.</p>
-                  {(parseInt(cleanupStr) || 0) > 0 && (
+                  <p className="text-xs text-stone-400 mt-1">Tempo aggiuntivo per pulizia/organizzazione dopo il servizio. Visibile al cliente nel riepilogo.</p>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-1.5">
+                    <Clock className="w-4 h-4" />
+                    Buffer di pausa (min)
+                  </label>
+                  <input type="text" inputMode="numeric" value={bufferStr} onChange={e => { setBufferStr(e.target.value); setForm(prev => ({ ...prev, bufferMinutes: parseInt(e.target.value) || 0 })) }} placeholder="0" className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors" />
+                  <p className="text-xs text-stone-400 mt-1">Tempo di riposo tra un cliente e il successivo. Non visibile al cliente, ma blocca lo slot nel calendario.</p>
+                  {(parseInt(bufferStr) || 0) > 0 && (
                     <p className="text-xs text-stone-600 mt-1 font-medium">
-                      Durata totale: {parseInt(durationStr) || 30} + {parseInt(cleanupStr) || 0} = {(parseInt(durationStr) || 30) + (parseInt(cleanupStr) || 0)} min
+                      Durata slot: {parseInt(durationStr) || 30} + {parseInt(cleanupStr) || 0} + {parseInt(bufferStr) || 0} = {(parseInt(durationStr) || 30) + (parseInt(cleanupStr) || 0) + (parseInt(bufferStr) || 0)} min
                     </p>
                   )}
                 </div>

@@ -66,7 +66,7 @@ export async function getAvailableSlots(
   const bookings = await db.booking.findMany({
     where: {
       startTime: { gte: dayStart, lt: dayEnd },
-      status: { in: ['confirmed', 'pending'] },
+      status: { in: ['confirmed', 'pending', 'blocked'] },
       configId: config.id,
     },
     select: {

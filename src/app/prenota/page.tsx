@@ -25,6 +25,7 @@ interface Service {
   price: number
   durationMinutes: number
   cleanupMinutes: number
+  bufferMinutes: number
   active: boolean
 }
 
@@ -129,7 +130,14 @@ export default function PrenotaPage() {
     const s = services.find(sv => sv.id === id)
     return sum + ((s as Service)?.cleanupMinutes || 0)
   }, 0)
+  const totalBufferDuration = booking.serviceIds.reduce((sum, id) => {
+    const s = services.find(sv => sv.id === id)
+    return sum + ((s as Service)?.bufferMinutes || 0)
+  }, 0)
+  // Duration shown to customer (service + cleanup)
   const totalDuration = totalServiceDuration + totalCleanupDuration
+  // Duration used for slot calculation (includes invisible buffer)
+  const totalSlotDuration = totalDuration + totalBufferDuration
 
   const totalPrice = booking.serviceIds.reduce((sum, id) => {
     const s = services.find(sv => sv.id === id)
@@ -235,17 +243,17 @@ export default function PrenotaPage() {
   })
 
   const fetchMonthAvailability = useCallback(async (year: number, month: number) => {
-    if (totalDuration === 0) return
+    if (totalSlotDuration === 0) return
     const firstDay = new Date(year, month, 1)
     const lastDay = new Date(year, month + 1, 0)
     const from = formatDate(firstDay)
     const to = formatDate(lastDay)
 
     try {
-      const res = await fetch(`/api/slots?date=${from}&duration=${totalDuration}`)
+      const res = await fetch(`/api/slots?date=${from}&duration=${totalSlotDuration}`)
       const startData = await res.json()
 
-      const res2 = await fetch(`/api/slots?date=${to}&duration=${totalDuration}`)
+      const res2 = await fetch(`/api/slots?date=${to}&duration=${totalSlotDuration}`)
       const endData = await res2.json()
 
       const newAvail: Record<string, AvailabilityLevel> = { ...dayAvailabilities }
@@ -263,7 +271,7 @@ export default function PrenotaPage() {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
         if (d !== 1 && d !== daysInMonth) {
           promises.push(
-            fetch(`/api/slots?date=${dateStr}&duration=${totalDuration}`)
+            fetch(`/api/slots?date=${dateStr}&duration=${totalSlotDuration}`)
               .then(r => r.json())
               .then(data => {
                 newAvail[dateStr] = data.availability || 'none'
@@ -283,7 +291,7 @@ export default function PrenotaPage() {
     } catch (e) {
       console.error('Error fetching availability:', e)
     }
-  }, [totalDuration])
+  }, [totalSlotDuration])
 
   useEffect(() => {
     if (step === 2) {
@@ -295,7 +303,7 @@ export default function PrenotaPage() {
     setLoadingSlots(true)
     setBooking(prev => ({ ...prev, date: dateStr, time: '' }))
     try {
-      const res = await fetch(`/api/slots?date=${dateStr}&duration=${totalDuration}`)
+      const res = await fetch(`/api/slots?date=${dateStr}&duration=${totalSlotDuration}`)
       const data = await res.json()
       setAvailableSlots(data.slots || [])
     } catch {
@@ -429,9 +437,14 @@ export default function PrenotaPage() {
           </h3>
 
           {loadingSlots ? (
-            <div className="flex items-center gap-2 text-stone-400">
-              <div className="animate-spin w-4 h-4 border-2 border-stone-300 border-t-stone-900 rounded-full" />
-              Caricamento...
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="py-3 rounded-xl bg-stone-200 animate-pulse"
+                  style={{ animationDelay: `${i * 75}ms` }}
+                />
+              ))}
             </div>
           ) : availableSlots.length === 0 ? (
             <p className="text-stone-400 text-sm">Nessun orario disponibile per questa data</p>
@@ -665,7 +678,7 @@ export default function PrenotaPage() {
 
     try {
       // Re-verify slot availability before submitting
-      const slotRes = await fetch(`/api/slots?date=${booking.date}&duration=${totalDuration}`)
+      const slotRes = await fetch(`/api/slots?date=${booking.date}&duration=${totalSlotDuration}`)
       const slotData = await slotRes.json()
       if (!slotData.slots || !slotData.slots.includes(booking.time)) {
         setError('Lo slot selezionato non è più disponibile. Torna indietro e seleziona un altro orario.')
