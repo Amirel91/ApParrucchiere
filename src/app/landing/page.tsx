@@ -634,6 +634,21 @@ export default function LandingPage() {
       {/* ==================== FOOTER ==================== */}
       <footer className="py-8 text-center border-t border-stone-100">
         <p className="text-xs text-stone-400">&copy; {new Date().getFullYear()} IntelliGenda</p>
+        <div className="flex items-center justify-center gap-3 mt-2">
+          <a
+            href="/termini"
+            className="text-xs text-stone-400 hover:text-stone-600 transition-colors underline-offset-2 hover:underline"
+          >
+            Termini e Condizioni
+          </a>
+          <span className="text-stone-300">|</span>
+          <a
+            href="/privacy"
+            className="text-xs text-stone-400 hover:text-stone-600 transition-colors underline-offset-2 hover:underline"
+          >
+            Privacy Policy
+          </a>
+        </div>
       </footer>
     </div>
   )
