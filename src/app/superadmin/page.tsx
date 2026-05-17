@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Shield,
@@ -16,6 +16,11 @@ import {
   RefreshCw,
   Search,
   ArrowLeft,
+  XCircle,
+  Clock,
+  MessageSquareOff,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -54,6 +59,11 @@ interface TenantRow {
   bookingCount: number
   adminCount: number
   hasConfig: boolean
+  // Billing
+  subscriptionStatus: string | null
+  planEndDate: string | null
+  cancelReason: string | null
+  cancelledAt: string | null
 }
 
 interface Stats {
@@ -62,6 +72,37 @@ interface Stats {
   suspendedTenants: number
   totalBookings: number
   monthlyRevenue: number
+}
+
+// ==================== SUBSCRIPTION BADGE ====================
+
+const SUBSCRIPTION_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+  trial:      { label: 'Prova',       color: 'text-blue-700',    bg: 'bg-blue-50' },
+  active:     { label: 'Attivo',      color: 'text-emerald-700', bg: 'bg-emerald-50' },
+  cancelling: { label: 'In disdetta', color: 'text-orange-700',  bg: 'bg-orange-50' },
+  suspended:  { label: 'Sospeso',     color: 'text-red-700',     bg: 'bg-red-50' },
+}
+
+function SubscriptionBadge({ status, planEndDate }: { status: string | null; planEndDate: string | null }) {
+  const s = SUBSCRIPTION_LABELS[status || 'trial'] || SUBSCRIPTION_LABELS.trial
+
+  const isExpired = planEndDate && new Date(planEndDate) <= new Date()
+  const effectiveStatus = isExpired && status === 'cancelling' ? 'suspended' : (status || 'trial')
+  const config = SUBSCRIPTION_LABELS[effectiveStatus] || s
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium w-fit ${config.bg} ${config.color}`}>
+        <CreditCard className="w-3 h-3" />
+        {config.label}
+      </span>
+      {planEndDate && (
+        <span className="text-[10px] text-stone-400">
+          {isExpired ? 'Scaduto il' : 'Rinnovo:'} {new Date(planEndDate).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+        </span>
+      )}
+    </div>
+  )
 }
 
 // ==================== PAGE ====================
@@ -75,6 +116,7 @@ export default function SuperAdminDashboard() {
   const [search, setSearch] = useState('')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [expandedTenant, setExpandedTenant] = useState<string | null>(null)
 
   // ==================== FETCH DATA ====================
 
@@ -301,7 +343,7 @@ export default function SuperAdminDashboard() {
                 <span className="text-sm text-stone-500">Ricavi mensili stimati</span>
               </div>
               <p className="text-3xl font-bold text-stone-900">{stats.monthlyRevenue}€</p>
-              <p className="text-xs text-stone-400 mt-1">{stats.activeTenants} attività x 40€/mese</p>
+              <p className="text-xs text-stone-400 mt-1">{stats.payingTenants ?? stats.activeTenants} abbonamenti paganti x 40€/mese</p>
             </div>
 
             <div className="bg-white rounded-2xl border border-stone-200 p-6">
@@ -341,8 +383,8 @@ export default function SuperAdminDashboard() {
                   <th className="px-4 py-3 font-medium text-stone-500">Attività</th>
                   <th className="px-4 py-3 font-medium text-stone-500 hidden md:table-cell">Titolare</th>
                   <th className="px-4 py-3 font-medium text-stone-500">Sottodominio</th>
-                  <th className="px-4 py-3 font-medium text-stone-500 hidden sm:table-cell">Prenotazioni</th>
-                  <th className="px-4 py-3 font-medium text-stone-500 hidden lg:table-cell">Creazione</th>
+                  <th className="px-4 py-3 font-medium text-stone-500 hidden sm:table-cell">Pren.</th>
+                  <th className="px-4 py-3 font-medium text-stone-500 hidden lg:table-cell">Abbonamento</th>
                   <th className="px-4 py-3 font-medium text-stone-500">Stato</th>
                   <th className="px-4 py-3 font-medium text-stone-500 text-right">Azioni</th>
                 </tr>
@@ -356,98 +398,131 @@ export default function SuperAdminDashboard() {
                   </tr>
                 ) : (
                   filtered.map(tenant => (
-                    <tr key={tenant.id} className="hover:bg-stone-50/50 transition-colors">
-                      <td className="px-4 py-3">
-                        <div>
-                          <p className="font-medium text-stone-900">{tenant.businessName}</p>
-                          <p className="text-xs text-stone-400 md:hidden">{tenant.ownerName}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        <p className="text-stone-600">{tenant.ownerName}</p>
-                        <p className="text-xs text-stone-400">{tenant.ownerEmail}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <a
-                          href={`https://${tenant.slug}.intelligenda.it`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-stone-600 hover:text-stone-900 font-mono text-xs"
-                        >
-                          {tenant.slug}.intelligenda.it
-                        </a>
-                      </td>
-                      <td className="px-4 py-3 hidden sm:table-cell">
-                        <span className="inline-flex items-center gap-1 text-stone-600">
-                          <CalendarCheck className="w-3.5 h-3.5" />
-                          {tenant.bookingCount}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-stone-500 hidden lg:table-cell">
-                        {formatDate(tenant.createdAt)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {tenant.active ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Attiva
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-medium">
-                            <Ban className="w-3 h-3" />
-                            Sospesa
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          {tenant.slug !== 'default' && (
-                            <>
+                    <React.Fragment key={tenant.id}>
+                      <tr className="hover:bg-stone-50/50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <p className="font-medium text-stone-900">{tenant.businessName}</p>
+                              <p className="text-xs text-stone-400 md:hidden">{tenant.ownerName}</p>
+                            </div>
+                            {tenant.cancelReason && (
                               <button
-                                onClick={() => handleToggleActive(tenant)}
-                                disabled={actionLoading === tenant.id}
-                                className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
-                                  tenant.active
-                                    ? 'text-orange-600 hover:bg-orange-50'
-                                    : 'text-emerald-600 hover:bg-emerald-50'
-                                }`}
-                                title={tenant.active ? 'Sospendi' : 'Riattiva'}
+                                onClick={() => setExpandedTenant(expandedTenant === tenant.id ? null : tenant.id)}
+                                className="p-1 rounded text-orange-500 hover:bg-orange-50 transition-colors"
+                                title="Motivo disdetta"
                               >
-                                {actionLoading === tenant.id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : tenant.active ? (
-                                  <Ban className="w-4 h-4" />
-                                ) : (
-                                  <CheckCircle2 className="w-4 h-4" />
-                                )}
+                                <MessageSquareOff className="w-3.5 h-3.5" />
                               </button>
-                              {confirmDelete === tenant.id ? (
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 hidden md:table-cell">
+                          <p className="text-stone-600">{tenant.ownerName}</p>
+                          <p className="text-xs text-stone-400">{tenant.ownerEmail}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <a
+                            href={`https://${tenant.slug}.intelligenda.it`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-stone-600 hover:text-stone-900 font-mono text-xs"
+                          >
+                            {tenant.slug}.intelligenda.it
+                          </a>
+                        </td>
+                        <td className="px-4 py-3 hidden sm:table-cell">
+                          <span className="inline-flex items-center gap-1 text-stone-600">
+                            <CalendarCheck className="w-3.5 h-3.5" />
+                            {tenant.bookingCount}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 hidden lg:table-cell">
+                          <SubscriptionBadge status={tenant.subscriptionStatus} planEndDate={tenant.planEndDate} />
+                        </td>
+                        <td className="px-4 py-3">
+                          {tenant.active ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Attiva
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-medium">
+                              <Ban className="w-3 h-3" />
+                              Sospesa
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            {tenant.slug !== 'default' && (
+                              <>
                                 <button
-                                  onClick={() => handleDelete(tenant)}
+                                  onClick={() => handleToggleActive(tenant)}
                                   disabled={actionLoading === tenant.id}
-                                  className="p-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
-                                  title="Conferma eliminazione"
+                                  className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
+                                    tenant.active
+                                      ? 'text-orange-600 hover:bg-orange-50'
+                                      : 'text-emerald-600 hover:bg-emerald-50'
+                                  }`}
+                                  title={tenant.active ? 'Sospendi' : 'Riattiva'}
                                 >
                                   {actionLoading === tenant.id ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : tenant.active ? (
+                                    <Ban className="w-4 h-4" />
                                   ) : (
-                                    <AlertTriangle className="w-4 h-4" />
+                                    <CheckCircle2 className="w-4 h-4" />
                                   )}
                                 </button>
-                              ) : (
-                                <button
-                                  onClick={() => setConfirmDelete(tenant.id)}
-                                  className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
-                                  title="Elimina"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                                {confirmDelete === tenant.id ? (
+                                  <button
+                                    onClick={() => handleDelete(tenant)}
+                                    disabled={actionLoading === tenant.id}
+                                    className="p-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                                    title="Conferma eliminazione"
+                                  >
+                                    {actionLoading === tenant.id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <AlertTriangle className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => setConfirmDelete(tenant.id)}
+                                    className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                                    title="Elimina"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Expanded row: cancel reason details */}
+                      {expandedTenant === tenant.id && tenant.cancelReason && (
+                        <tr className="bg-orange-50/50">
+                          <td colSpan={7} className="px-4 py-3">
+                            <div className="flex items-start gap-3 ml-2">
+                              <MessageSquareOff className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-orange-800">Motivo disdetta</p>
+                                <p className="text-xs text-orange-700">{tenant.cancelReason}</p>
+                                {tenant.cancelledAt && (
+                                  <p className="text-xs text-orange-500">
+                                    Data disdetta: {formatDate(tenant.cancelledAt)}
+                                    {tenant.planEndDate && ` — Servizio attivo fino al: ${formatDate(tenant.planEndDate)}`}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))
                 )}
               </tbody>

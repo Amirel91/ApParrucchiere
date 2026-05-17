@@ -47,6 +47,11 @@ export async function GET(request: NextRequest) {
       bookingCount: t.config?._count?.bookings ?? 0,
       adminCount: t._count.admins,
       hasConfig: !!t.config,
+      // Billing fields
+      subscriptionStatus: t.subscriptionStatus,
+      planEndDate: t.planEndDate,
+      cancelReason: t.cancelReason,
+      cancelledAt: t.cancelledAt,
     }))
 
     return NextResponse.json(mapped)

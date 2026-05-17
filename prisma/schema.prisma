@@ -20,6 +20,14 @@ model Tenant {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
+  // ============ BILLING (Nexi XPay) ============
+  subscriptionStatus  String       @default("trial")    // trial, active, cancelling, suspended
+  planEndDate         DateTime?                         // quando scade il periodo pagato
+  nexiCustomerId      String?                           // ID cliente Nexi
+  nexiSubscriptionId  String?                           // ID sottoscrizione Nexi
+  cancelReason        String?                           // motivo disdetta (anti-churn)
+  cancelledAt         DateTime?                         // data della disdetta
+
   config          BusinessConfig?
   admins          AdminUser[]
 }

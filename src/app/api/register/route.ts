@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create tenant
+    // Create tenant (starts with trial subscription)
     const tenant = await db.tenant.create({
       data: {
         slug: data.slug,
@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
         ownerName: data.fullName,
         ownerEmail: data.email,
         active: true,
+        subscriptionStatus: 'trial',
       },
     })
 

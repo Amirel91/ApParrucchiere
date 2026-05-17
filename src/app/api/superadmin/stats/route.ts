@@ -17,21 +17,30 @@ export async function GET(request: NextRequest) {
       activeTenants,
       totalBookings,
       suspendedTenants,
+      cancellingTenants,
     ] = await Promise.all([
       db.tenant.count(),
       db.tenant.count({ where: { active: true } }),
       db.booking.count(),
       db.tenant.count({ where: { active: false } }),
+      db.tenant.count({ where: { subscriptionStatus: 'cancelling' } }),
     ])
 
-    const monthlyRevenue = activeTenants * 40
+    // Only count tenants that are actually paying (active subscription, not trial)
+    const payingTenants = await db.tenant.count({
+      where: { subscriptionStatus: 'active' },
+    })
+
+    const monthlyRevenue = payingTenants * 40
 
     return NextResponse.json({
       totalTenants,
       activeTenants,
       suspendedTenants,
+      cancellingTenants,
       totalBookings,
       monthlyRevenue,
+      payingTenants,
     })
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'SuperAdminUnauthorized') {

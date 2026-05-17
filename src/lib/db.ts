@@ -89,6 +89,13 @@ const MIGRATION_SQL = [
   END $$`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "BusinessConfig_tenantId_key" ON "BusinessConfig"("tenantId")`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "AdminUser_tenantId_username_key" ON "AdminUser"("tenantId", "username")`,
+  // ============ BILLING MIGRATIONS (Nexi XPay) ============
+  `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "subscriptionStatus" TEXT NOT NULL DEFAULT 'trial'`,
+  `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "planEndDate" TIMESTAMP(3)`,
+  `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "nexiCustomerId" TEXT`,
+  `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "nexiSubscriptionId" TEXT`,
+  `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "cancelReason" TEXT`,
+  `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3)`,
 ]
 
 /**

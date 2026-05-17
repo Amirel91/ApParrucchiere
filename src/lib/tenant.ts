@@ -1,5 +1,5 @@
 import { db, ensureDbSchema } from './db'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
 const MAIN_DOMAINS = ['localhost', 'intelligenda.it', 'www.intelligenda.it']
@@ -31,7 +31,7 @@ export function isMainDomain(request: NextRequest): boolean {
 }
 
 /**
- * Resolve tenant from slug
+ * Resolve tenant from slug (with full billing data)
  */
 export async function getTenantBySlug(slug: string) {
   await ensureDbSchema()
@@ -42,14 +42,33 @@ export async function getTenantBySlug(slug: string) {
 }
 
 /**
- * Get the full tenant + config for the current request
+ * Get the full tenant + config for the current request.
+ * Returns null if the tenant is suspended (planEndDate expired).
  */
 export async function getTenantConfig(request: NextRequest) {
   const slug = getTenantSlugFromRequest(request)
   if (!slug) return null
 
   const tenant = await getTenantBySlug(slug)
-  return tenant?.config || null
+  if (!tenant) return null
+
+  // ============ BILLING SUSPENSION CHECK ============
+  // If the tenant is in "cancelling" state and planEndDate has passed,
+  // treat as suspended — the public site and admin should be blocked.
+  const now = new Date()
+  const isSubscriptionExpired =
+    tenant.subscriptionStatus === 'cancelling' &&
+    tenant.planEndDate &&
+    new Date(tenant.planEndDate) <= now
+
+  const isSuspended =
+    tenant.subscriptionStatus === 'suspended' || isSubscriptionExpired
+
+  if (isSuspended) {
+    return null // Effectively blocks access
+  }
+
+  return tenant.config || null
 }
 
 /**
@@ -60,14 +79,42 @@ export async function getTenantConfigFromCookies() {
   if (!slug) return null
 
   const tenant = await getTenantBySlug(slug)
-  return tenant?.config || null
+  if (!tenant) return null
+
+  // Same suspension check as getTenantConfig
+  const now = new Date()
+  const isSubscriptionExpired =
+    tenant.subscriptionStatus === 'cancelling' &&
+    tenant.planEndDate &&
+    new Date(tenant.planEndDate) <= now
+
+  const isSuspended =
+    tenant.subscriptionStatus === 'suspended' || isSubscriptionExpired
+
+  if (isSuspended) {
+    return null
+  }
+
+  return tenant.config || null
 }
 
 /**
- * Require tenant config (throws if not found)
+ * Require tenant config (throws if not found or suspended)
  */
 export async function requireTenantConfig(request: NextRequest) {
   const config = await getTenantConfig(request)
   if (!config) throw new Error('TenantNotFound')
   return config
+}
+
+/**
+ * Get the tenant record (with billing info) without suspension check.
+ * Used by billing API routes that need to operate on suspended tenants too.
+ */
+export async function getTenantBySlugUnchecked(slug: string) {
+  await ensureDbSchema()
+  return db.tenant.findUnique({
+    where: { slug },
+    include: { config: true },
+  })
 }
