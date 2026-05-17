@@ -19,6 +19,8 @@ import {
   MapPin,
   Send,
   CheckCircle2,
+  LogIn,
+  Menu,
 } from 'lucide-react'
 
 // ==================== FORM STATE ====================
@@ -42,6 +44,9 @@ export default function LandingPage() {
 
   // Ref for smooth scroll to lead section
   const scontoRef = useRef<HTMLElement>(null)
+
+  // Mobile menu state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Registration form state
   const [form, setForm] = useState(initialForm)
@@ -193,6 +198,63 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
+      {/* ==================== NAVBAR ==================== */}
+      <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-stone-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          {/* Logo */}
+          <a href="/landing" className="flex items-center gap-2.5 text-stone-900 hover:opacity-80 transition-opacity">
+            <div className="w-8 h-8 rounded-lg bg-stone-900 flex items-center justify-center">
+              <CalendarDays className="w-4.5 h-4.5 text-white" />
+            </div>
+            <span className="text-base font-bold tracking-tight">IntelliGenda</span>
+          </a>
+
+          {/* Desktop links */}
+          <div className="hidden sm:flex items-center gap-6">
+            <a href="#registrati" className="text-sm text-stone-500 hover:text-stone-900 transition-colors">
+              Registrati
+            </a>
+            <a
+              href="/login"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-stone-700 border border-stone-200 rounded-xl hover:bg-stone-50 hover:border-stone-300 transition-all"
+            >
+              <LogIn className="w-4 h-4" />
+              Accedi
+            </a>
+          </div>
+
+          {/* Mobile menu button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="sm:hidden p-2 rounded-lg text-stone-600 hover:bg-stone-100 transition-colors"
+            aria-label="Menu"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
+
+        {/* Mobile menu dropdown */}
+        {mobileMenuOpen && (
+          <div className="sm:hidden border-t border-stone-100 bg-white px-4 py-3 space-y-2">
+            <a
+              href="#registrati"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block px-3 py-2.5 text-sm text-stone-600 rounded-lg hover:bg-stone-50 transition-colors"
+            >
+              Registrati
+            </a>
+            <a
+              href="/login"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-stone-700 border border-stone-200 rounded-xl hover:bg-stone-50 transition-all"
+            >
+              <LogIn className="w-4 h-4" />
+              Accedi
+            </a>
+          </div>
+        )}
+      </nav>
+
       {/* ==================== HERO ==================== */}
       <section className="min-h-[70vh] flex flex-col items-center justify-center text-center px-6">
         <CalendarDays className="w-16 h-16 text-stone-900 mb-6" />
