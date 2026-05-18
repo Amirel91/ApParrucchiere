@@ -126,3 +126,23 @@ Stage Summary:
 - Registration form now includes activity type selection
 - Admin services pages show contextual quick-fill suggestions
 - Zero impact on multi-resource and multi-tenant logic
+---
+Task ID: 1
+Agent: main
+Task: Performance optimization - database indexing, calendar query optimization, connection pooling
+
+Work Log:
+- Read and analyzed all relevant files: schema.prisma, db.ts, bookings API, slots API, slot-algorithm.ts, client prenota page
+- Identified critical bottleneck: client booking page making ~30 individual API calls per month view (90+ DB queries total)
+- Added composite indexes to schema.prisma: Booking(configId,startTime), Booking(status,startTime), Service(configId,active), Resource(configId,active), WorkingHours(configId)
+- Added 5 CREATE INDEX IF NOT EXISTS statements to auto-migration SQL in db.ts
+- Created getBatchAvailability() function in slot-algorithm.ts that computes availability for entire date range with only 3 DB queries
+- Created /api/slots/batch API endpoint accepting startDate+endDate+duration
+- Refactored /prenota page.tsx fetchMonthAvailability() from 30 parallel API calls to 1 batch call
+- Optimized PrismaClient constructor for Neon serverless: singleton pattern preserved, datasourceUrl override, error-only logging in production
+- Build successful, committed as 2ccf9b9
+
+Stage Summary:
+- Key files modified: prisma/schema.prisma, src/lib/db.ts, src/lib/slot-algorithm.ts, src/app/api/slots/batch/route.ts (new), src/app/prenota/page.tsx
+- Performance improvement: Client calendar from ~90 DB queries to 3 DB queries per month load
+- All existing functionality preserved, no multi-tenant/multi-resource logic touched
