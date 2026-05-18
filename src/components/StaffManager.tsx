@@ -9,7 +9,7 @@ import {
   Loader2,
   Phone,
   Mail,
-  Scissors,
+  Wrench,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -358,7 +358,7 @@ export default function StaffManager() {
                     </div>
                   )}
                   <div className="flex items-center gap-1 mt-3 text-xs text-muted-foreground">
-                    <Scissors className="w-3 h-3" />
+                    <Wrench className="w-3 h-3" />
                     <span>
                       {(member.services?.length || member.serviceIds?.length || 0)}{' '}
                       serviz{i(member.services?.length || member.serviceIds?.length || 0)}
@@ -394,7 +394,7 @@ export default function StaffManager() {
                   onClick={() => openAssign(selectedStaff)}
                   className="gap-1 min-h-[36px]"
                 >
-                  <Scissors className="w-3 h-3" />
+                  <Wrench className="w-3 h-3" />
                   Servizi
                 </Button>
                 <Button

@@ -264,7 +264,7 @@ export default function OnboardingWizard() {
                     <Label htmlFor="businessName">Nome attività</Label>
                     <Input
                       id="businessName"
-                      placeholder="Il mio Salone"
+                      placeholder="La mia Attività"
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
                     />
@@ -420,7 +420,7 @@ export default function OnboardingWizard() {
                       <div className="space-y-2">
                         <Label>Nome servizio *</Label>
                         <Input
-                          placeholder="Es: Taglio donna"
+                          placeholder="Es: Servizio Standard"
                           value={service.name}
                           onChange={(e) =>
                             updateService(idx, 'name', e.target.value)
@@ -466,7 +466,7 @@ export default function OnboardingWizard() {
                       <div className="space-y-2">
                         <Label className="text-xs">Categoria (opzionale)</Label>
                         <Input
-                          placeholder="Es: Capelli, Trattamenti"
+                          placeholder="Es: Standard, Premium"
                           value={service.category}
                           onChange={(e) =>
                             updateService(idx, 'category', e.target.value)

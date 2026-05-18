@@ -12,7 +12,7 @@ async function main() {
     update: {},
     create: {
       slug: 'default',
-      businessName: 'Studio Bellezza',
+      businessName: 'Studio Professionale',
       ownerName: '',
       ownerEmail: '',
     },
@@ -41,10 +41,10 @@ async function main() {
     create: {
       id: 'default-config',
       tenantId: tenant.id,
-      shopName: 'Studio Bellezza',
-      shopDescription: 'Il tuo studio di bellezza di fiducia. Prenota il tuo appuntamento in pochi clic.',
+      shopName: 'Studio Professionale',
+      shopDescription: 'Il tuo studio di fiducia. Prenota il tuo appuntamento in pochi clic.',
       shopPhone: '+39 02 1234567',
-      shopEmail: 'info@studiobellezza.it',
+      shopEmail: 'info@studioprofessionale.it',
       shopAddress: 'Via Roma 42, Milano',
     },
   })
@@ -74,14 +74,14 @@ async function main() {
 
   // Create sample services
   const services = [
-    { name: 'Taglio Donna', description: 'Taglio e styling completo', price: 35, durationMinutes: 45, active: true, sortOrder: 1 },
-    { name: 'Taglio Uomo', description: 'Taglio classico o moderno', price: 20, durationMinutes: 30, active: true, sortOrder: 2 },
-    { name: 'Piega', description: 'Piega con asciugatura professionale', price: 25, durationMinutes: 40, active: true, sortOrder: 3 },
-    { name: 'Colore', description: 'Colorazione completa', price: 50, durationMinutes: 60, active: true, sortOrder: 4 },
-    { name: 'Meches', description: 'Schiariture e meches', price: 65, durationMinutes: 90, active: true, sortOrder: 5 },
-    { name: 'Trattamento Keratina', description: 'Lisciatura e nutrimento con cheratina', price: 80, durationMinutes: 120, active: true, sortOrder: 6 },
-    { name: 'Manicure', description: 'Manicure classica con smalto', price: 18, durationMinutes: 30, active: true, sortOrder: 7 },
-    { name: 'Pedicure', description: 'Pedicure curativa e estetica', price: 30, durationMinutes: 45, active: true, sortOrder: 8 },
+    { name: 'Consulenza', description: 'Consulenza professionale personalizzata', price: 35, durationMinutes: 45, active: true, sortOrder: 1 },
+    { name: 'Primo Appuntamento', description: 'Valutazione iniziale e analisi', price: 20, durationMinutes: 30, active: true, sortOrder: 2 },
+    { name: 'Trattamento Base', description: 'Trattamento standard della durata di 40 minuti', price: 25, durationMinutes: 40, active: true, sortOrder: 3 },
+    { name: 'Trattamento Avanzato', description: 'Trattamento completo e approfondito', price: 50, durationMinutes: 60, active: true, sortOrder: 4 },
+    { name: 'Pacchetto Premium', description: 'Servizio completo con analisi dettagliata', price: 65, durationMinutes: 90, active: true, sortOrder: 5 },
+    { name: 'Sessione Intensiva', description: 'Sessione prolungata per casi complessi', price: 80, durationMinutes: 120, active: true, sortOrder: 6 },
+    { name: 'Controllo Periodico', description: 'Verifica periodica di follow-up', price: 18, durationMinutes: 30, active: true, sortOrder: 7 },
+    { name: 'Visita di Follow-up', description: 'Controllo successivo al trattamento', price: 30, durationMinutes: 45, active: true, sortOrder: 8 },
   ]
 
   for (const s of services) {

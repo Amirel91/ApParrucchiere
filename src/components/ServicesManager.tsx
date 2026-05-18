@@ -12,7 +12,7 @@ import {
   Loader2,
   X,
   Clock,
-  Scissors,
+  Wrench,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -393,7 +393,7 @@ export default function ServicesManager() {
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <Scissors className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+            <Wrench className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-muted-foreground font-medium">
               {search || categoryFilter
                 ? 'Nessun servizio trovato'
@@ -569,7 +569,7 @@ export default function ServicesManager() {
               <Input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Es: Taglio donna"
+                placeholder="Es: Servizio Standard"
               />
             </div>
             <div className="space-y-2">
@@ -633,7 +633,7 @@ export default function ServicesManager() {
               <Input
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
-                placeholder="Es: Capelli, Trattamenti"
+                placeholder="Es: Standard, Premium"
               />
             </div>
             <div className="flex items-center justify-between">

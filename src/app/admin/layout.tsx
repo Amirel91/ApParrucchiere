@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
   LayoutDashboard,
   CalendarDays,
-  Scissors,
+  Sparkles,
   Settings,
   LogOut,
   Menu,
@@ -28,7 +28,7 @@ const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays },
   { href: '/admin/prenota', label: 'Nuova Prenotazione', icon: Plus },
-  { href: '/admin/servizi', label: 'Servizi', icon: Scissors },
+  { href: '/admin/servizi', label: 'Servizi', icon: Sparkles },
   { href: '/admin/impostazioni', label: 'Impostazioni', icon: Settings },
 ]
 

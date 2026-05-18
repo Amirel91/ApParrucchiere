@@ -424,7 +424,7 @@ export default function LandingPage() {
                   type="text"
                   value={form.businessName}
                   onChange={e => updateField('businessName', e.target.value)}
-                  placeholder="Barberia Rock"
+                  placeholder="Studio Rossi"
                   className={`w-full pl-11 pr-4 py-3 rounded-xl border-2 bg-white text-stone-900 placeholder-stone-400 outline-none transition-colors ${
                     errors.businessName
                       ? 'border-red-400'
@@ -453,7 +453,7 @@ export default function LandingPage() {
                       e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
                     )
                   }
-                  placeholder="barberia-rock"
+                  placeholder="studio-rossi"
                   className={`w-full pl-11 pr-40 py-3 rounded-xl border-2 bg-white text-stone-900 placeholder-stone-400 outline-none transition-colors ${
                     errors.slug ? 'border-red-400' : 'border-stone-200 focus:border-stone-900'
                   }`}

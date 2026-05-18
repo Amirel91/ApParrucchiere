@@ -7,7 +7,7 @@ import { it } from 'date-fns/locale'
 import {
   Calendar,
   Users,
-  Scissors,
+  Sparkles,
   Euro,
   Plus,
   UserPlus,
@@ -94,7 +94,7 @@ export default function Dashboard() {
     {
       label: 'Servizi Attivi',
       value: stats?.activeServices ?? 0,
-      icon: Scissors,
+      icon: Sparkles,
       color: 'bg-rose-100 text-rose-700',
     },
     {

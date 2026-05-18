@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion'
 import {
   LayoutDashboard,
-  Scissors,
+  Sparkles,
   Users,
   UserCheck,
   CalendarDays,
@@ -26,7 +26,7 @@ import { getActivityType } from '@/lib/activity-types'
 
 const NAV_ITEMS: { view: AppView; label: string; icon: typeof LayoutDashboard }[] = [
   { view: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { view: 'services', label: 'Servizi', icon: Scissors },
+  { view: 'services', label: 'Servizi', icon: Sparkles },
   { view: 'staff', label: 'Staff', icon: Users },
   { view: 'clients', label: 'Clienti', icon: UserCheck },
   { view: 'calendar', label: 'Calendario', icon: CalendarDays },
@@ -39,7 +39,7 @@ function SidebarContent() {
   const activityType = session?.business?.activityType
     ? getActivityType(session.business.activityType)
     : null
-  const ActivityIcon = activityType?.icon || Scissors
+  const ActivityIcon = activityType?.icon || Sparkles
 
   const initials = session?.account?.name
     ? session.account.name
@@ -149,7 +149,7 @@ export function MobileTopBar() {
   const activityType = session?.business?.activityType
     ? getActivityType(session.business.activityType)
     : null
-  const ActivityIcon = activityType?.icon || Scissors
+  const ActivityIcon = activityType?.icon || Sparkles
 
   return (
     <header className="lg:hidden sticky top-0 z-40 bg-card/80 backdrop-blur-lg border-b">

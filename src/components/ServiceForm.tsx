@@ -93,7 +93,7 @@ export function ServiceForm({
                 id="svc-name"
                 value={name}
                 onChange={(e) => setFormState((s) => ({ ...s, name: e.target.value }))}
-                placeholder="Es: Taglio Capelli"
+                placeholder="Es: Servizio Standard"
                 className="rounded-xl"
                 required
               />

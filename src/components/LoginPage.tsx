@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Scissors, LogIn } from 'lucide-react'
+import { Calendar, LogIn } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -58,10 +58,10 @@ export function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-primary-foreground mb-4">
-            <Scissors className="h-8 w-8" />
+            <Calendar className="h-8 w-8" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">BarberShop</h1>
-          <p className="text-muted-foreground mt-1">Prenota il tuo taglio</p>
+          <h1 className="text-2xl font-bold tracking-tight">IntelliGenda</h1>
+          <p className="text-muted-foreground mt-1">Prenota il tuo appuntamento</p>
         </div>
 
         {/* Quick login buttons */}
@@ -71,7 +71,7 @@ export function LoginPage() {
               <Button
                 variant="outline"
                 className="w-full h-12 text-base rounded-xl justify-start gap-3"
-                onClick={() => handleQuickLogin('admin@barber.it', 'admin')}
+                onClick={() => handleQuickLogin('admin@demo.it', 'admin')}
                 disabled={loading}
               >
                 <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">

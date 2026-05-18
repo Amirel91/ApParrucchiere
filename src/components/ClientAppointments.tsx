@@ -76,7 +76,7 @@ export function ClientAppointments({ userId }: ClientAppointmentsProps) {
         <EmptyState
           icon={<CalendarDays className="h-12 w-12" strokeWidth={1.5} />}
           title="Nessun appuntamento"
-          description="Non hai ancora prenotazioni. Prenota il tuo primo taglio!"
+          description="Non hai ancora prenotazioni. Prenota il tuo primo appuntamento!"
         />
       ) : (
         <div className="space-y-3 mb-8">

@@ -295,7 +295,7 @@ export default function AdminImpostazioni() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1.5">Nome del Negozio *</label>
-              <input type="text" value={config.shopName} onChange={e => updateConfigField('shopName', e.target.value)} placeholder="Es: Studio Bellezza Anna" className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors" />
+              <input type="text" value={config.shopName} onChange={e => updateConfigField('shopName', e.target.value)} placeholder="Es: Il mio Negozio" className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors" />
             </div>
 
             <div>

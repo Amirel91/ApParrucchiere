@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  LayoutDashboard, Scissors, Users, CalendarDays, Settings,
+  LayoutDashboard, Sparkles, Users, CalendarDays, Settings,
   LogOut, Menu, ChevronRight, UserCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,7 @@ import SettingsView from './SettingsView'
 
 const NAV_ITEMS: { key: AppView; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { key: 'services', label: 'Servizi', icon: Scissors },
+  { key: 'services', label: 'Servizi', icon: Sparkles },
   { key: 'staff', label: 'Staff', icon: Users },
   { key: 'clients', label: 'Clienti', icon: UserCheck },
   { key: 'calendar', label: 'Calendario', icon: CalendarDays },

@@ -1,12 +1,12 @@
 'use client'
 
-import { LayoutDashboard, Scissors, CalendarDays, LogOut } from 'lucide-react'
+import { LayoutDashboard, Sparkles, CalendarDays, LogOut } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { id: 'admin-dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'admin-services' as const, label: 'Servizi', icon: Scissors },
+  { id: 'admin-services' as const, label: 'Servizi', icon: Sparkles },
   { id: 'admin-calendar' as const, label: 'Calendario', icon: CalendarDays },
 ]
 
@@ -20,7 +20,7 @@ export function AdminNav() {
     <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-border">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-14">
-          <h1 className="font-semibold text-lg">BarberShop</h1>
+          <h1 className="font-semibold text-lg">IntelliGenda</h1>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground hidden sm:inline">
               Ciao, {currentUser?.name?.split(' ')[0]}

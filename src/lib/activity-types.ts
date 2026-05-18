@@ -1,5 +1,4 @@
 import {
-  Scissors,
   Sparkles,
   Hand,
   Waves,
@@ -10,6 +9,8 @@ import {
   Palette,
   Dog,
   Sun,
+  Wrench,
+  Briefcase,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -24,20 +25,12 @@ export interface ActivityType {
 
 export const ACTIVITY_TYPES: ActivityType[] = [
   {
-    id: 'SALONE',
-    name: 'Salone',
-    description: 'Taglio, piega, colore e trattamenti per capelli',
-    icon: Scissors,
+    id: 'GENERICO',
+    name: 'Servizi',
+    description: 'Consulenze, trattamenti e servizi professionali',
+    icon: Briefcase,
     color: 'text-rose-600',
     bgColor: 'bg-rose-50',
-  },
-  {
-    id: 'BARBIERE',
-    name: 'Barbiere',
-    description: 'Taglio, barba e rasatura tradizionale',
-    icon: Scissors,
-    color: 'text-amber-600',
-    bgColor: 'bg-amber-50',
   },
   {
     id: 'UNGHIE',
@@ -118,6 +111,14 @@ export const ACTIVITY_TYPES: ActivityType[] = [
     icon: Sun,
     color: 'text-yellow-600',
     bgColor: 'bg-yellow-50',
+  },
+  {
+    id: 'ALTRO',
+    name: 'Altro',
+    description: 'Altre tipologie di attività e servizi',
+    icon: Wrench,
+    color: 'text-gray-600',
+    bgColor: 'bg-gray-50',
   },
 ]
 
