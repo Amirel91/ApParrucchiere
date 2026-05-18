@@ -5,6 +5,55 @@ import { bookingSchema } from '@/lib/validations'
 import { isSlotAvailable, findFreeResource } from '@/lib/slot-algorithm'
 import { getTenantConfig, requireTenantConfig } from '@/lib/tenant'
 
+// ============ RATE LIMITING (In-Memory, Anti-Spam) ============
+// Max 2 bookings per IP per configId in a 2-hour window
+const RATE_LIMIT_WINDOW_MS = 2 * 60 * 60 * 1000 // 2 hours
+const RATE_LIMIT_MAX = 2
+
+interface RateLimitEntry {
+  count: number
+  windowStart: number
+}
+
+const rateLimitMap = new Map<string, RateLimitEntry>()
+
+// Clean up expired entries every 10 minutes
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of rateLimitMap) {
+    if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+      rateLimitMap.delete(key)
+    }
+  }
+}, 10 * 60 * 1000)
+
+function checkRateLimit(ip: string, configId: string): boolean {
+  const key = `${ip}:${configId}`
+  const now = Date.now()
+  const entry = rateLimitMap.get(key)
+
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    // Start new window
+    rateLimitMap.set(key, { count: 1, windowStart: now })
+    return true // allowed
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false // rate limited
+  }
+
+  entry.count++
+  return true // allowed
+}
+
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown'
+  )
+}
+
 // GET /api/bookings - Admin: get all bookings
 export async function GET(request: NextRequest) {
   try {
@@ -69,6 +118,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Negozio non trovato' }, { status: 404 })
     }
 
+    // Rate limiting: max 2 bookings per IP per configId in 2 hours
+    const clientIp = getClientIp(request)
+    if (!checkRateLimit(clientIp, config.id)) {
+      return NextResponse.json(
+        { error: 'Troppe prenotazioni ripetute. Riprova tra qualche ora.' },
+        { status: 429 }
+      )
+    }
+
     // Get services to calculate total price and duration
     const services = await db.service.findMany({
       where: { id: { in: data.serviceIds }, configId: config.id },
@@ -118,10 +176,11 @@ export async function POST(request: NextRequest) {
       include: {
         services: { include: { service: true } },
         resource: { select: { id: true, name: true } },
+        config: { select: { shopName: true } },
       },
     })
 
-    return NextResponse.json(booking, { status: 201 })
+    return NextResponse.json({ ...booking, shopName: booking.config?.shopName || config.shopName }, { status: 201 })
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'issues' in error) {
       return NextResponse.json({ error: 'Dati non validi', details: error }, { status: 400 })

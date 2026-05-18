@@ -17,6 +17,7 @@ import {
   CalendarX,
   Download,
   X,
+  ExternalLink,
 } from 'lucide-react'
 
 // ==================== TYPES ====================
@@ -58,6 +59,8 @@ export default function PrenotaPage() {
   const { canInstall: canInstallPWA, isIOS: isIOSSafari, promptInstall: promptPWAInstall, dismiss: dismissPWAInstall } = usePWAInstall()
   const [showIOSHint, setShowIOSHint] = useState(false)
   const [step, setStep] = useState(1)
+  const [confirmedBookingId, setConfirmedBookingId] = useState<string | null>(null)
+  const [shopName, setShopName] = useState<string>('')
   const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -632,9 +635,34 @@ export default function PrenotaPage() {
           </div>
         </div>
 
+        {/* Action Buttons: Google Calendar + Cancel Link */}
+        <div className="mt-6 mx-auto max-w-sm space-y-3 print:hidden">
+          {/* Google Calendar Link */}
+          <a
+            href={buildGoogleCalendarUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white border border-stone-200 text-stone-700 text-sm font-medium hover:bg-stone-50 transition-colors"
+          >
+            <Calendar className="w-4 h-4" />
+            Aggiungi al Calendario
+            <ExternalLink className="w-3.5 h-3.5 text-stone-400" />
+          </a>
+
+          {/* Cancellation Link */}
+          {confirmedBookingId && (
+            <a
+              href={`/prenota/cancella/${confirmedBookingId}`}
+              className="block w-full text-center px-4 py-2.5 rounded-xl text-stone-400 text-xs hover:text-stone-600 hover:bg-stone-100 transition-colors"
+            >
+              Annulla questa prenotazione
+            </a>
+          )}
+        </div>
+
         <button
           onClick={() => router.push('/')}
-          className="mt-8 px-8 py-3 rounded-xl bg-stone-900 text-white font-medium hover:bg-stone-800 transition-colors"
+          className="mt-6 px-8 py-3 rounded-xl bg-stone-900 text-white font-medium hover:bg-stone-800 transition-colors print:hidden"
         >
           Torna alla Home
         </button>
@@ -713,6 +741,10 @@ export default function PrenotaPage() {
         throw new Error(data.error || 'Errore nella prenotazione')
       }
 
+      const createdBooking = await res.json()
+      setConfirmedBookingId(createdBooking.id || null)
+      setShopName(createdBooking.shopName || '')
+
       setStep(4) // Success step
 
       // Save or clear localStorage based on rememberMe
@@ -766,6 +798,21 @@ export default function PrenotaPage() {
     const h = Math.floor(minutes / 60)
     const m = minutes % 60
     return m > 0 ? `${h}h ${m}min` : `${h}h`
+  }
+
+  function buildGoogleCalendarUrl(): string {
+    const serviceName = selectedServices.map(s => s.name).join(', ') || 'Appuntamento'
+    const title = encodeURIComponent(`${serviceName} — ${shopName || 'IntelliGenda'}`)
+    const startISO = `${booking.date}T${booking.time}:00`
+    const startDate = new Date(`${booking.date}T${booking.time}:00`)
+    const endDate = new Date(startDate.getTime() + totalSlotDuration * 60 * 1000)
+    const endISO = endDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    const startCal = new Date(startISO).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+
+    const details = encodeURIComponent(
+      `Prenotazione confermata per ${serviceName}\nTotale: €${totalPrice.toFixed(2)}\nDurata: ${formatDuration(totalDuration)}`
+    )
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startCal}/${endISO}&details=${details}`
   }
 
   // ==================== RENDER ====================
