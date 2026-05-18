@@ -50,3 +50,28 @@ Stage Summary:
 - Backend finds tenant by ownerEmail, retrieves admin, verifies password, returns slug
 - Frontend redirects to /account?slug=xxx after successful authentication
 - Files modified: src/app/api/auth/global-login/route.ts, src/app/login/page.tsx
+
+---
+Task ID: 3
+Agent: main
+Task: Implement multi-resource (multi-chair/collaborator) support
+
+Work Log:
+- Analyzed existing codebase: schema, slot-algorithm.ts, bookings API, time-blocks API, settings UI, calendar UI
+- Updated prisma/schema.prisma: added Resource model (id, name, active, sortOrder, configId), added nullable resourceId to Booking
+- Added 8 DDL migrations to db.ts: Resource table, FK constraints, Booking.resourceId, auto-seed "Standard" resource
+- Rewrote slot-algorithm.ts: per-resource availability check, legacy bookings block all resources, new findFreeResource() helper
+- Created /api/resources (GET+POST) and /api/resources/[id] (PUT+DELETE) with full CRUD
+- Updated /api/bookings GET to include resource, POST to auto-assign via findFreeResource()
+- Updated /api/time-blocks POST to accept optional resourceId
+- Added "Postazioni" tab to Settings page with full CRUD UI (add/rename/toggle ON-OFF/delete)
+- Updated Calendar: resource badge shown in desktop side panel, mobile bottom sheet, list view, table view, booking detail modal
+- Resolved git rebase conflict (merged billing migrations with resource migrations in db.ts)
+- Build passed, deployed to GitHub
+
+Stage Summary:
+- 13 files changed, 710 insertions
+- Files created: src/app/api/resources/route.ts, src/app/api/resources/[id]/route.ts
+- Files modified: prisma/schema.prisma, src/lib/db.ts, src/lib/slot-algorithm.ts, src/app/api/bookings/route.ts, src/app/api/time-blocks/route.ts, src/app/admin/impostazioni/page.tsx, src/app/admin/calendario/page.tsx
+- Commit: 9023821 pushed to main
+- Backward compatible: existing bookings work unchanged, default "Standard" resource auto-created
