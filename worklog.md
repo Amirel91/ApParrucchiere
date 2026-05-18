@@ -146,3 +146,22 @@ Stage Summary:
 - Key files modified: prisma/schema.prisma, src/lib/db.ts, src/lib/slot-algorithm.ts, src/app/api/slots/batch/route.ts (new), src/app/prenota/page.tsx
 - Performance improvement: Client calendar from ~90 DB queries to 3 DB queries per month load
 - All existing functionality preserved, no multi-tenant/multi-resource logic touched
+---
+Task ID: 1
+Agent: main
+Task: Fix main domain routing — rewrite instead of redirect for intelligenda.it
+
+Work Log:
+- Analyzed routing structure: proxy.ts (Next.js 16 proxy pattern, not middleware.ts), app/page.tsx, app/landing/page.tsx
+- Identified root cause: proxy.ts did NextResponse.next() for main domain → page.tsx client-side fetch /api/config → no tenant → window.location.href = /landing (visible redirect)
+- Fixed proxy.ts: for main custom domains (intelligenda.it, www.intelligenda.it) on root path /, use NextResponse.rewrite() to internally serve /landing content
+- Also fixed Vercel domain case: when no tenant_slug cookie and path is /, rewrite to /landing
+- Other paths on main domain (/login, /account, etc.) continue to work normally with cookie clearing
+- Tenant subdomain routing (amir.intelligenda.it) unchanged — still sets cookie and passes through
+- Build passed successfully
+
+Stage Summary:
+- Changed src/proxy.ts: replaced NextResponse.next() with NextResponse.rewrite() for root path on main domains
+- intelligenda.it/ now serves landing page instantly with clean URL (no /landing visible)
+- Tenant isolation preserved: subdomains unaffected
+- Build: PASSED

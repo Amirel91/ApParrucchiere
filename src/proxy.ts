@@ -41,14 +41,35 @@ export function proxy(request: NextRequest) {
 
   if (isMainDomain) {
     if (isVercelDomain) {
-      // On Vercel domains, do NOT clear the tenant cookie.
-      // The cookie is set via /t/[slug] above.
-      // The homepage (page.tsx) checks /api/config and redirects to /landing
-      // if no tenant is found, so no cookie = landing page automatically.
+      // On Vercel domains without a tenant cookie, rewrite root to /landing
+      // so the URL stays clean (no visible client-side redirect)
+      const tenantCookie = request.cookies.get('tenant_slug')
+      if (!tenantCookie?.value && (url.pathname === '/' || url.pathname === '')) {
+        const landingUrl = request.nextUrl.clone()
+        landingUrl.pathname = '/landing'
+        return NextResponse.rewrite(landingUrl)
+      }
       return NextResponse.next()
     }
 
-    // On custom main domains (intelligenda.it, www), clear cookie → landing page
+    // On custom main domains (intelligenda.it, www)
+    const isRootPath = url.pathname === '/' || url.pathname === ''
+
+    if (isRootPath) {
+      // Rewrite root to /landing — URL stays as intelligenda.it (no visible redirect)
+      const landingUrl = request.nextUrl.clone()
+      landingUrl.pathname = '/landing'
+      const response = NextResponse.rewrite(landingUrl)
+      response.cookies.set('tenant_slug', '', {
+        path: '/',
+        maxAge: 0,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      })
+      return response
+    }
+
+    // Other paths on main domain (/login, /account, etc.): clear cookie and pass through
     const response = NextResponse.next()
     response.cookies.set('tenant_slug', '', {
       path: '/',
