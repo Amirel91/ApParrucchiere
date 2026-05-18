@@ -3,6 +3,12 @@ import { db, ensureDbSchema } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { z } from 'zod'
 
+const VALID_ACTIVITY_TYPES = [
+  'ESTETICA_BEAUTY','SALONI_CAPELLI','BENESSERE_SPA','TATUAGGI_PIERCING',
+  'AUTO_MOTO','FISIOTERAPIA_MEDICA','PERSONAL_TRAINER_SPORT','STUDI_LEALI_CONSULENZA',
+  'PET_GROOMING','SCUOLE_CORSI','ALTRO',
+]
+
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Nome obbligatorio'),
   businessName: z.string().min(2, 'Nome attività obbligatorio'),
@@ -13,6 +19,7 @@ const registerSchema = z.object({
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Solo lettere minuscole, numeri e trattini'),
   email: z.string().email('Email non valida'),
   password: z.string().min(6, 'Minimo 6 caratteri'),
+  activityType: z.string().default('ALTRO'),
 })
 
 const DOMAIN_BASE = 'intelligenda.it'
@@ -106,12 +113,18 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Resolve activity type (fallback to ALTRO if invalid)
+    const activityType = VALID_ACTIVITY_TYPES.includes(data.activityType)
+      ? data.activityType
+      : 'ALTRO'
+
     // Create business config for this tenant
     const config = await db.businessConfig.create({
       data: {
         tenantId: tenant.id,
         shopName: data.businessName,
         shopDescription: '',
+        activityType,
       },
     })
 

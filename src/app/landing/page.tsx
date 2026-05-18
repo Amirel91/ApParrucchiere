@@ -21,7 +21,9 @@ import {
   CheckCircle2,
   LogIn,
   Menu,
+  ChevronDown,
 } from 'lucide-react'
+import { ACTIVITY_TYPES } from '@/lib/activity-types'
 
 // ==================== FORM STATE ====================
 
@@ -31,6 +33,7 @@ const initialForm = {
   slug: '',
   email: '',
   password: '',
+  activityType: 'ALTRO',
 }
 
 // ==================== LANDING PAGE ====================
@@ -480,6 +483,25 @@ export default function LandingPage() {
                 )}
               </div>
               {errors.slug && <p className="text-red-500 text-xs mt-1">{errors.slug}</p>}
+            </div>
+
+            {/* Tipo di Attività */}
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                Tipo di Attività
+              </label>
+              <div className="relative">
+                <select
+                  value={form.activityType}
+                  onChange={e => updateField('activityType', e.target.value)}
+                  className="w-full appearance-none pl-4 pr-10 py-3 rounded-xl border-2 border-stone-200 bg-white text-stone-900 outline-none focus:border-stone-900 transition-colors cursor-pointer"
+                >
+                  {ACTIVITY_TYPES.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+              </div>
             </div>
 
             {/* Email */}

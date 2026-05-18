@@ -96,6 +96,8 @@ const MIGRATION_SQL = [
   `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "nexiSubscriptionId" TEXT`,
   `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "cancelReason" TEXT`,
   `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3)`,
+  // ============ ACTIVITY TYPE MIGRATION ============
+  `ALTER TABLE "BusinessConfig" ADD COLUMN IF NOT EXISTS "activityType" TEXT NOT NULL DEFAULT 'ALTRO'`,
   // ============ MULTI-RESOURCE MIGRATIONS ============
   `CREATE TABLE IF NOT EXISTS "Resource" (
     "id" TEXT NOT NULL PRIMARY KEY,

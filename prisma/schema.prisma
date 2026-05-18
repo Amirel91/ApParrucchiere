@@ -43,6 +43,8 @@ model BusinessConfig {
   shopPhone       String?
   shopEmail       String?
   shopAddress     String?
+  // Activity category chosen during registration
+  activityType    String         @default("ALTRO")
   // Lunch break
   lunchBreakEnabled Boolean      @default(false)
   lunchBreakStart   String       @default("12:30")  // "HH:MM"

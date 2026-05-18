@@ -13,6 +13,7 @@ import {
   X,
   Clock,
   Wrench,
+  Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -48,6 +49,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useAppStore } from '@/lib/store'
 import { formatPrice } from '@/lib/utils'
+import { getSuggestions } from '@/lib/service-suggestions'
 import { toast } from 'sonner'
 
 interface ServiceVariant {
@@ -130,6 +132,10 @@ export default function ServicesManager() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const token = session?.token
+
+  // Derive suggestions from session's activity type
+  const activityType = session?.business?.activityType || 'ALTRO'
+  const suggestions = getSuggestions(activityType)
 
   const fetchServices = useCallback(async () => {
     if (!token) return
@@ -338,6 +344,34 @@ export default function ServicesManager() {
           Nuovo Servizio
         </Button>
       </div>
+
+      {/* Quick suggestion badges */}
+      {suggestions.length > 0 && !dialogOpen && (
+        <div className="bg-muted/50 rounded-xl border p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Suggerimenti rapidi</span>
+            <span className="text-xs text-muted-foreground">— clicca per precompilare il form</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  setEditingId(null)
+                  setForm({ ...emptyService, name: s.name, duration: s.durationMinutes })
+                  setDialogOpen(true)
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border bg-card text-foreground text-sm font-medium hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {s.name} <span className="text-muted-foreground">({s.durationMinutes} min)</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Search + Filter */}
       <div className="flex flex-col sm:flex-row gap-3">

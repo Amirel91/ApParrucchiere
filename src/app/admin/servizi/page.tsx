@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Pencil, Trash2, X, Clock, Euro, GripVertical, Timer } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Clock, Euro, GripVertical, Timer, Zap } from 'lucide-react'
+import { getSuggestions } from '@/lib/service-suggestions'
 
 interface Service {
   id: string
@@ -40,6 +41,8 @@ export default function AdminServizi() {
   const [bufferStr, setBufferStr] = useState('0')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [activityType, setActivityType] = useState<string>('ALTRO')
+  const [configLoading, setConfigLoading] = useState(true)
 
   const fetchServices = () => {
     fetch('/api/services?all=true')
@@ -49,6 +52,17 @@ export default function AdminServizi() {
   }
 
   useEffect(() => { fetchServices() }, [])
+
+  // Fetch activity type from config
+  useEffect(() => {
+    fetch('/api/config')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.activityType) setActivityType(data.activityType) })
+      .catch(() => {})
+      .finally(() => setConfigLoading(false))
+  }, [])
+
+  const suggestions = getSuggestions(activityType)
 
   const openNew = () => {
     setForm({ ...emptyForm, sortOrder: services.length + 1 })
@@ -120,6 +134,37 @@ export default function AdminServizi() {
       </div>
 
       {error && (<div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm">{error}</div>)}
+
+      {/* Quick suggestion badges */}
+      {suggestions.length > 0 && !showForm && (
+        <div className="bg-stone-50 rounded-xl border border-stone-200 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-4 h-4 text-stone-500" />
+            <span className="text-sm font-medium text-stone-700">Suggerimenti rapidi</span>
+            <span className="text-xs text-stone-400">— clicca per precompilare il form</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  setForm({ ...emptyForm, name: s.name, durationMinutes: s.durationMinutes, sortOrder: services.length + 1 })
+                  setDurationStr(String(s.durationMinutes))
+                  setPriceStr('0'); setCleanupStr('0'); setBufferStr('0')
+                  setEditingId(null)
+                  setShowForm(true)
+                  setError('')
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-stone-200 bg-white text-stone-700 text-sm font-medium hover:bg-stone-900 hover:text-white hover:border-stone-900 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {s.name} <span className="text-stone-400">({s.durationMinutes} min)</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Services list */}
       <div className="space-y-2">
