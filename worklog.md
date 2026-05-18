@@ -75,3 +75,30 @@ Stage Summary:
 - Files modified: prisma/schema.prisma, src/lib/db.ts, src/lib/slot-algorithm.ts, src/app/api/bookings/route.ts, src/app/api/time-blocks/route.ts, src/app/admin/impostazioni/page.tsx, src/app/admin/calendario/page.tsx
 - Commit: 9023821 pushed to main
 - Backward compatible: existing bookings work unchanged, default "Standard" resource auto-created
+---
+Task ID: 1
+Agent: Main Agent
+Task: Rimuovere tutti i riferimenti testuali, visivi e segnaposto legati al mondo parrucchieri/barbieri
+
+Work Log:
+- Searched entire codebase for barber/salon references (Scissors, BarberShop, taglio, parrucchi, capelli, barba, etc.)
+- Found 23 files with 75+ total match lines
+- Replaced all Scissors icon imports with Sparkles, Wrench, or Calendar (context-dependent)
+- Updated LoginPage: BarberShop → IntelliGenda, icon Scissors → Calendar, "Prenota il tuo taglio" → "Prenota il tuo appuntamento"
+- Updated AdminNav: Scissors → Sparkles, BarberShop → IntelliGenda
+- Updated Sidebar, AppShell, Dashboard, StaffManager, admin/layout: Scissors → Sparkles/Wrench
+- Updated ServiceForm, ServicesManager, OnboardingWizard: "Taglio Capelli/Donna" → "Servizio Standard", "Capelli, Trattamenti" → "Standard, Premium"
+- Updated ClientAppointments: "Prenota il tuo primo taglio!" → "Prenota il tuo primo appuntamento!"
+- Updated landing/page.tsx: "Barberia Rock" → "Studio Rossi"
+- Updated OnboardingWizard: "Il mio Salone" → "La mia Attività"
+- Replaced SALONE/BARBIERE activity types with GENERICO/ALTRO in activity-types.ts
+- Updated seed.ts: replaced all salon-specific services with generic professional services
+- Changed seed business name from "Studio Bellezza" to "Studio Professionale"
+- Verified zero remaining Scissors/barber references via grep
+- Build passed with zero errors
+- Deployed to GitHub as commit e620bd8
+
+Stage Summary:
+- 16 files modified across components, pages, lib, and seed
+- All barber/salon/hair-specific references removed
+- Build successful, pushed to main
