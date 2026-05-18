@@ -165,3 +165,20 @@ Stage Summary:
 - intelligenda.it/ now serves landing page instantly with clean URL (no /landing visible)
 - Tenant isolation preserved: subdomains unaffected
 - Build: PASSED
+---
+Task ID: 1
+Agent: main
+Task: Fix calendar grey-out bug after timezone refactor
+
+Work Log:
+- Read slot-algorithm.ts, timezone.ts, schema.prisma, batch route, prenota page
+- Identified root cause: in getBatchAvailability() while-loop, lines 371 and 378 used `cur.setDate(cur.getDate() + 1)` but `cur` is a string, not a Date → TypeError crash → 500 → all calendar days grey
+- Verified getDayOfWeekRome returns 1-7 (Mon-Sun) which matches WorkingHours.dayOfWeek Int schema — no mismatch there
+- Fixed both occurrences to use `cur = addDays(cur, 1)` (consistent with line 455)
+- Added `res.ok` check + `!('error' in data)` guard in prenota page batch fetch for resilience
+- Committed as 927ca90 and pushed to main
+
+Stage Summary:
+- Root cause: TypeError on string.setDate() crashed getBatchAvailability, causing 500
+- Fix: 2-line change in slot-algorithm.ts + defensive fetch guard in prenota page
+- Calendar colors (green/yellow/red) and time slots should now display correctly
