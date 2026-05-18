@@ -13,7 +13,9 @@ import {
   X,
   Home,
   Plus,
+  Download,
 } from 'lucide-react'
+import { usePWAInstall } from '@/hooks/use-pwa-install'
 
 interface AuthContextType {
   username: string | null
@@ -38,6 +40,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [username, setUsername] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showIOSHint, setShowIOSHint] = useState(false)
+  const { canInstall: canInstallPWA, isIOS: isIOSSafari, promptInstall: promptPWAInstall, dismiss: dismissPWAInstall } = usePWAInstall()
 
   const isLoginPage = pathname === '/admin/login'
 
@@ -145,6 +149,41 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </nav>
 
           <div className="p-3 border-t border-stone-100 space-y-1">
+            {/* PWA Install Button */}
+            {canInstallPWA && !isIOSSafari && (
+              <button
+                onClick={promptPWAInstall}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium bg-stone-900 text-white hover:bg-stone-800 transition-colors"
+              >
+                <Download className="w-5 h-5" />
+                Installa l'App sul Telefono
+              </button>
+            )}
+            {/* iOS Install Hint */}
+            {canInstallPWA && isIOSSafari && !showIOSHint && (
+              <button
+                onClick={() => setShowIOSHint(true)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                <Download className="w-5 h-5" />
+                Installa l'App sul Telefono
+              </button>
+            )}
+            {canInstallPWA && isIOSSafari && showIOSHint && (
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800 space-y-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-sm">Installa IntelliGenda</span>
+                  <button onClick={() => setShowIOSHint(false)} className="p-1 rounded-md hover:bg-blue-100">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <ol className="space-y-0.5 list-decimal list-inside text-blue-700">
+                  <li>Tocca <strong>Condividi</strong> in basso</li>
+                  <li>Seleziona <strong>Aggiungi a Home</strong></li>
+                  <li>Conferma con <strong>Aggiungi</strong></li>
+                </ol>
+              </div>
+            )}
             <Link
               href="/"
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-stone-500 hover:bg-stone-100 transition-colors"

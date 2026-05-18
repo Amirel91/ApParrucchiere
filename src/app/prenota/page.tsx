@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import { usePWAInstall } from '@/hooks/use-pwa-install'
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,6 +15,8 @@ import {
   ChevronRight,
   PartyPopper,
   CalendarX,
+  Download,
+  X,
 } from 'lucide-react'
 
 // ==================== TYPES ====================
@@ -52,6 +55,8 @@ interface DayAvailability {
 
 export default function PrenotaPage() {
   const router = useRouter()
+  const { canInstall: canInstallPWA, isIOS: isIOSSafari, promptInstall: promptPWAInstall, dismiss: dismissPWAInstall } = usePWAInstall()
+  const [showIOSHint, setShowIOSHint] = useState(false)
   const [step, setStep] = useState(1)
   const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
@@ -633,6 +638,48 @@ export default function PrenotaPage() {
         >
           Torna alla Home
         </button>
+
+        {/* PWA Install Prompt */}
+        {canInstallPWA && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className="mt-5 mx-auto max-w-sm relative"
+          >
+            {isIOSSafari && !showIOSHint ? (
+              <button
+                onClick={() => setShowIOSHint(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Scarica l'app sul tuo telefono
+              </button>
+            ) : isIOSSafari && showIOSHint ? (
+              <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-sm text-blue-800 text-left space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">Installa IntelliGenda</span>
+                  <button onClick={dismissPWAInstall} className="p-1 rounded-md hover:bg-blue-100">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <ol className="space-y-1 list-decimal list-inside text-blue-700">
+                  <li>Tocca il pulsante <strong>Condividi</strong> in basso</li>
+                  <li>Seleziona <strong>Aggiungi a Home</strong></li>
+                  <li>Conferma con <strong>Aggiungi</strong></li>
+                </ol>
+              </div>
+            ) : (
+              <button
+                onClick={promptPWAInstall}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-stone-900 text-white text-sm font-medium hover:bg-stone-800 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Scarica l'app per le prossime prenotazioni
+              </button>
+            )}
+          </motion.div>
+        )}
       </motion.div>
     </div>
   )
