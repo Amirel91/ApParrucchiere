@@ -1,4 +1,11 @@
 import { db, ensureDbSchema } from './db'
+import {
+  getDayOfWeekRome,
+  getMinutesFromMidnightRome,
+  formatDateRome,
+  createInRome,
+  addDays,
+} from './timezone'
 
 export interface SlotResult {
   date: string          // "YYYY-MM-DD"
@@ -32,8 +39,7 @@ export async function getAvailableSlots(
   configId?: string
 ): Promise<SlotResult> {
   await ensureDbSchema()
-  const date = new Date(dateStr + 'T00:00:00')
-  const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay() // 1=Mon ... 7=Sun
+  const dayOfWeek = getDayOfWeekRome(dateStr) // 1=Mon ... 7=Sun (Europe/Rome)
 
   // Get working hours for this day
   const config = await db.businessConfig.findFirst({
@@ -79,12 +85,12 @@ export async function getAvailableSlots(
     select: { id: true, name: true },
   })
 
-  // Get ALL bookings for this date (across all resources)
-  const dayStart = new Date(dateStr + 'T00:00:00')
-  const dayEnd = new Date(dateStr + 'T23:59:59')
+  // Get ALL bookings for this date (across all resources) — UTC bounds from Rome day
+  const dayStart = createInRome(dateStr, '00:00')
+  const dayEnd = createInRome(dateStr, '23:59')
   const bookings = await db.booking.findMany({
     where: {
-      startTime: { gte: dayStart, lt: dayEnd },
+      startTime: { gte: dayStart, lte: dayEnd },
       status: { in: ['confirmed', 'pending', 'blocked'] },
       configId: config.id,
     },
@@ -106,11 +112,10 @@ export async function getAvailableSlots(
   const unassignedRanges: { start: number; end: number }[] = []
 
   for (const b of bookings) {
-    const start = new Date(b.startTime)
-    const end = new Date(b.endTime)
+    // Extract hours/minutes in Europe/Rome, not server UTC
     const range = {
-      start: start.getHours() * 60 + start.getMinutes(),
-      end: end.getHours() * 60 + end.getMinutes(),
+      start: getMinutesFromMidnightRome(new Date(b.startTime)),
+      end: getMinutesFromMidnightRome(new Date(b.endTime)),
     }
 
     if (b.resourceId) {
@@ -222,24 +227,24 @@ export async function findFreeResource(
 
   if (resources.length === 0) return null
 
-  // Get all bookings for this date
-  const dayStart = new Date(dateStr + 'T00:00:00')
-  const dayEnd = new Date(dateStr + 'T23:59:59')
+  // Get all bookings for this date — UTC bounds from Rome day
+  const dayStart = createInRome(dateStr, '00:00')
+  const dayEnd = createInRome(dateStr, '23:59')
   const bookings = await db.booking.findMany({
     where: {
-      startTime: { gte: dayStart, lt: dayEnd },
+      startTime: { gte: dayStart, lte: dayEnd },
       status: { in: ['confirmed', 'pending', 'blocked'] },
       configId,
     },
     select: { startTime: true, endTime: true, resourceId: true },
   })
 
-  // Check unassigned bookings (block all resources)
+  // Check unassigned bookings (block all resources) — Rome hours
   const unassignedBlocked = bookings
     .filter(b => !b.resourceId)
     .some(b => {
-      const bs = b.startTime.getHours() * 60 + b.startTime.getMinutes()
-      const be = b.endTime.getHours() * 60 + b.endTime.getMinutes()
+      const bs = getMinutesFromMidnightRome(new Date(b.startTime))
+      const be = getMinutesFromMidnightRome(new Date(b.endTime))
       return slotStart < be && slotEnd > bs
     })
 
@@ -250,8 +255,8 @@ export async function findFreeResource(
     const hasOverlap = bookings
       .filter(b => b.resourceId === resource.id)
       .some(b => {
-        const bs = b.startTime.getHours() * 60 + b.startTime.getMinutes()
-        const be = b.endTime.getHours() * 60 + b.endTime.getMinutes()
+        const bs = getMinutesFromMidnightRome(new Date(b.startTime))
+        const be = getMinutesFromMidnightRome(new Date(b.endTime))
         return slotStart < be && slotEnd > bs
       })
 
@@ -289,13 +294,13 @@ export async function getBatchAvailability(
   })
 
   if (!config) {
-    // Return 'none' for all days
+    // Return 'none' for all days (pure string iteration, no Date objects needed)
     const result: Record<string, SlotResult['availability']> = {}
-    const cur = new Date(startDate + 'T00:00:00')
-    const end = new Date(endDate + 'T00:00:00')
+    let cur = startDate
+    const end = endDate
     while (cur <= end) {
-      result[cur.toISOString().split('T')[0]] = 'none'
-      cur.setDate(cur.getDate() + 1)
+      result[cur] = 'none'
+      cur = addDays(cur, 1)
     }
     return result
   }
@@ -328,36 +333,37 @@ export async function getBatchAvailability(
   })
 
   // 3. ALL bookings in the date range (single query with composite index)
-  const rangeStart = new Date(startDate + 'T00:00:00')
-  const rangeEnd = new Date(endDate + 'T23:59:59')
+  // Use Rome-aware UTC boundaries
+  const rangeStart = createInRome(startDate, '00:00')
+  const rangeEnd = createInRome(endDate, '23:59')
   const allBookings = await db.booking.findMany({
     where: {
-      startTime: { gte: rangeStart, lt: rangeEnd },
+      startTime: { gte: rangeStart, lte: rangeEnd },
       status: { in: ['confirmed', 'pending', 'blocked'] },
       configId: config.id,
     },
     select: { startTime: true, endTime: true, resourceId: true },
   })
 
-  // Group bookings by date string for fast lookup
+  // Group bookings by date string for fast lookup (Rome timezone)
   const bookingsByDate = new Map<string, typeof allBookings>()
   for (const b of allBookings) {
-    const dateKey = b.startTime.toISOString().split('T')[0]
+    const dateKey = formatDateRome(new Date(b.startTime))
     const existing = bookingsByDate.get(dateKey)
     if (existing) existing.push(b)
     else bookingsByDate.set(dateKey, [b])
   }
 
-  // Compute availability for each day in range
+  // Compute availability for each day in range (pure string iteration)
   const STEP = 15
   const result: Record<string, SlotResult['availability']> = {}
 
-  const cur = new Date(startDate + 'T00:00:00')
-  const end = new Date(endDate + 'T00:00:00')
+  let cur = startDate
+  const end = endDate
 
   while (cur <= end) {
-    const dateStr = cur.toISOString().split('T')[0]
-    const dayOfWeek = cur.getDay() === 0 ? 7 : cur.getDay()
+    const dateStr = cur
+    const dayOfWeek = getDayOfWeekRome(dateStr)
 
     // Closed?
     if (closedDateSet.has(dateStr)) {
@@ -387,8 +393,9 @@ export async function getBatchAvailability(
     const unassignedRanges: { start: number; end: number }[] = []
 
     for (const b of dayBookings) {
-      const bs = b.startTime.getHours() * 60 + b.startTime.getMinutes()
-      const be = b.endTime.getHours() * 60 + b.endTime.getMinutes()
+      // Extract hours/minutes in Europe/Rome
+      const bs = getMinutesFromMidnightRome(new Date(b.startTime))
+      const be = getMinutesFromMidnightRome(new Date(b.endTime))
       const range = { start: bs, end: be }
 
       if (b.resourceId) {
@@ -445,7 +452,7 @@ export async function getBatchAvailability(
       result[dateStr] = 'high'
     }
 
-    cur.setDate(cur.getDate() + 1)
+    cur = addDays(cur, 1)
   }
 
   return result

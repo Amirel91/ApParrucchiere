@@ -107,7 +107,8 @@ export default function AdminCalendario() {
   const bookingsByDate = (dateStr: string) =>
     bookings.filter(b => {
       const d = new Date(b.startTime)
-      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      // Use Rome timezone to extract the date, not UTC
+      const ds = d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' }) // 'sv-SE' gives YYYY-MM-DD format
       return ds === dateStr
     })
 
@@ -136,7 +137,13 @@ export default function AdminCalendario() {
     return new Date(y, m - 1, d).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })
   }
 
-  const formatTime = (isoStr: string) => new Date(isoStr).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+  // Accepts both "YYYY-MM-DD" and ISO strings — used for booking display
+  const formatDisplayDate = (isoOrDate: string) => {
+    const d = new Date(isoOrDate)
+    return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Rome' })
+  }
+
+  const formatTime = (isoStr: string) => new Date(isoStr).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })
 
   const dayBookings = selectedDate ? bookingsByDate(selectedDate) : []
 
@@ -376,7 +383,7 @@ export default function AdminCalendario() {
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <div className="font-medium text-stone-900 text-sm">{booking.customerName} {booking.customerSurname}</div>
-                        <div className="text-xs text-stone-500 mt-0.5">{formatDate(new Date(booking.startTime).toISOString().split('T')[0])} &middot; {formatTime(booking.startTime)}</div>
+                        <div className="text-xs text-stone-500 mt-0.5">{formatDisplayDate(booking.startTime)}</div>
                       </div>
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ml-2 ${statusColors[booking.status] || ''}`}>{statusLabels[booking.status] || booking.status}</span>
                     </div>
@@ -430,7 +437,7 @@ export default function AdminCalendario() {
                 ) : (
                   bookings.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()).map(booking => (
                     <tr key={booking.id} className="border-b border-stone-100 hover:bg-stone-50">
-                      <td className="px-4 py-3 text-sm">{formatDate(new Date(booking.startTime).toISOString().split('T')[0])}</td>
+                      <td className="px-4 py-3 text-sm">{formatDisplayDate(booking.startTime)}</td>
                       <td className="px-4 py-3 text-sm">{formatTime(booking.startTime)}</td>
                       <td className="px-4 py-3 text-sm font-medium">{booking.customerName} {booking.customerSurname}</td>
                       <td className="px-4 py-3 text-sm text-stone-500">{booking.services.map(bs => bs.service.name).join(', ')}</td>
@@ -616,7 +623,7 @@ export default function AdminCalendario() {
                 <div className="flex items-center gap-3 text-stone-700">
                   <Clock className="w-5 h-5 text-stone-400 shrink-0" />
                   <div>
-                    <div className="font-medium">{formatDate(new Date(selectedBooking.startTime).toISOString().split('T')[0])}</div>
+                    <div className="font-medium">{formatDisplayDate(selectedBooking.startTime)}</div>
                     <div className="text-sm text-stone-500">{formatTime(selectedBooking.startTime)} - {formatTime(selectedBooking.endTime)}</div>
                   </div>
                 </div>

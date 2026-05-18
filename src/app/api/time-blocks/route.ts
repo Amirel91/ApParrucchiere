@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { requireTenantConfig } from '@/lib/tenant'
+import { createInRome } from '@/lib/timezone'
 
 /**
  * POST /api/time-blocks
@@ -38,7 +39,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const start = new Date(`${date}T${startTime}:00`)
+    // Create Date in Europe/Rome timezone (not server UTC)
+    const start = createInRome(date, startTime)
     const end = new Date(start.getTime() + mins * 60 * 1000)
 
     const block = await db.booking.create({

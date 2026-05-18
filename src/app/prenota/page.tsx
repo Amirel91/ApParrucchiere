@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePWAInstall } from '@/hooks/use-pwa-install'
+import { createInRome } from '@/lib/timezone'
 import {
   ArrowLeft,
   ArrowRight,
@@ -803,16 +804,19 @@ export default function PrenotaPage() {
   function buildGoogleCalendarUrl(): string {
     const serviceName = selectedServices.map(s => s.name).join(', ') || 'Appuntamento'
     const title = encodeURIComponent(`${serviceName} — ${shopName || 'IntelliGenda'}`)
-    const startISO = `${booking.date}T${booking.time}:00`
-    const startDate = new Date(`${booking.date}T${booking.time}:00`)
-    const endDate = new Date(startDate.getTime() + totalSlotDuration * 60 * 1000)
-    const endISO = endDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-    const startCal = new Date(startISO).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+
+    // Create dates explicitly in Europe/Rome timezone
+    const startRome = createInRome(booking.date, booking.time)
+    const endRome = new Date(startRome.getTime() + totalSlotDuration * 60 * 1000)
+
+    // Format as UTC for Google Calendar (with Z suffix)
+    const startCal = startRome.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    const endCal = endRome.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
 
     const details = encodeURIComponent(
       `Prenotazione confermata per ${serviceName}\nTotale: €${totalPrice.toFixed(2)}\nDurata: ${formatDuration(totalDuration)}`
     )
-    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startCal}/${endISO}&details=${details}`
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startCal}/${endCal}&details=${details}&ctz=Europe/Rome`
   }
 
   // ==================== RENDER ====================

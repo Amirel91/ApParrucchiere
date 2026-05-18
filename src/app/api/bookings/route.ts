@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { bookingSchema } from '@/lib/validations'
 import { isSlotAvailable, findFreeResource } from '@/lib/slot-algorithm'
 import { getTenantConfig, requireTenantConfig } from '@/lib/tenant'
+import { createInRome } from '@/lib/timezone'
 
 // ============ RATE LIMITING (In-Memory, Anti-Spam) ============
 // Max 2 bookings per IP per configId in a 2-hour window
@@ -69,12 +70,13 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = { configId: config.id }
     if (dateFrom && dateTo) {
+      // Use Rome-aware UTC boundaries for date range filtering
       where.startTime = {
-        gte: new Date(dateFrom),
-        lte: new Date(dateTo),
+        gte: createInRome(dateFrom.split('T')[0], dateFrom.split('T')[1] || '00:00'),
+        lte: createInRome(dateTo.split('T')[0], dateTo.split('T')[1] || '23:59'),
       }
     } else if (dateFrom) {
-      where.startTime = { gte: new Date(dateFrom) }
+      where.startTime = { gte: createInRome(dateFrom.split('T')[0], dateFrom.split('T')[1] || '00:00') }
     }
     if (status) {
       where.status = status
@@ -148,7 +150,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const startTime = new Date(`${data.date}T${data.time}:00`)
+    // Create Date in Europe/Rome timezone (not server UTC)
+    const startTime = createInRome(data.date, data.time)
     const endTime = new Date(startTime.getTime() + totalDuration * 60 * 1000)
 
     // Auto-assign to the first available resource
