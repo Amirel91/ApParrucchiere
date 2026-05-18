@@ -368,7 +368,7 @@ export async function getBatchAvailability(
     // Closed?
     if (closedDateSet.has(dateStr)) {
       result[dateStr] = 'none'
-      cur.setDate(cur.getDate() + 1)
+      cur = addDays(cur, 1)
       continue
     }
 
@@ -376,7 +376,7 @@ export async function getBatchAvailability(
     const wh = workingHoursByDay.get(dayOfWeek)
     if (!wh) {
       result[dateStr] = 'none'
-      cur.setDate(cur.getDate() + 1)
+      cur = addDays(cur, 1)
       continue
     }
 

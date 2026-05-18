@@ -261,9 +261,13 @@ export default function PrenotaPage() {
     try {
       // OPTIMIZED: Single batch API call instead of 30 individual calls
       const res = await fetch(`/api/slots/batch?startDate=${from}&endDate=${to}&duration=${totalSlotDuration}`)
+      if (!res.ok) {
+        console.error('Batch availability API returned', res.status)
+        return
+      }
       const data = await res.json()
 
-      if (typeof data === 'object' && data !== null) {
+      if (typeof data === 'object' && data !== null && !('error' in data)) {
         setDayAvailabilities(data as Record<string, AvailabilityLevel>)
       }
     } catch (e) {
