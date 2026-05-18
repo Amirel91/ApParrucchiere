@@ -262,26 +262,193 @@ export async function findFreeResource(
 }
 
 /**
- * Get availability for a range of dates (for calendar color coding)
+ * OPTIMIZED: Batch availability for a date range.
+ *
+ * Instead of N individual getAvailableSlots() calls (each doing 3 DB queries),
+ * this does only 3 DB queries total:
+ *   1. Config + workingHours + closedDates
+ *   2. Active resources
+ *   3. All bookings in the date range
+ *
+ * Then computes availability for every day in memory.
+ *
+ * Returns a map: { "YYYY-MM-DD": availabilityLevel }
  */
-export async function getDaysAvailability(
+export async function getBatchAvailability(
   startDate: string,
   endDate: string,
   totalDurationMinutes: number,
   configId?: string
-): Promise<SlotResult[]> {
-  const results: SlotResult[] = []
-  const current = new Date(startDate + 'T00:00:00')
-  const end = new Date(endDate + 'T00:00:00')
+): Promise<Record<string, SlotResult['availability']>> {
+  await ensureDbSchema()
 
-  while (current <= end) {
-    const dateStr = current.toISOString().split('T')[0]
-    const result = await getAvailableSlots(dateStr, totalDurationMinutes, configId)
-    results.push(result)
-    current.setDate(current.getDate() + 1)
+  // 1. Single query: config + working hours + closed dates
+  const config = await db.businessConfig.findFirst({
+    where: configId ? { id: configId } : undefined,
+    include: { workingHours: true, closedDates: true },
+  })
+
+  if (!config) {
+    // Return 'none' for all days
+    const result: Record<string, SlotResult['availability']> = {}
+    const cur = new Date(startDate + 'T00:00:00')
+    const end = new Date(endDate + 'T00:00:00')
+    while (cur <= end) {
+      result[cur.toISOString().split('T')[0]] = 'none'
+      cur.setDate(cur.getDate() + 1)
+    }
+    return result
   }
 
-  return results
+  // Build lookup sets
+  const closedDateSet = new Set(config.closedDates.map(cd => cd.date))
+  const workingHoursByDay = new Map<number, { openMinutes: number; closeMinutes: number }>()
+  for (const wh of config.workingHours) {
+    if (wh.closed) continue
+    const [oH, oM] = wh.openTime.split(':').map(Number)
+    const [cH, cM] = wh.closeTime.split(':').map(Number)
+    workingHoursByDay.set(wh.dayOfWeek, { openMinutes: oH * 60 + oM, closeMinutes: cH * 60 + cM })
+  }
+
+  // Parse lunch break (shared across all days)
+  let lunchStart = -1
+  let lunchEnd = -1
+  if (config.lunchBreakEnabled && config.lunchBreakStart && config.lunchBreakEnd) {
+    const [lsH, lsM] = config.lunchBreakStart.split(':').map(Number)
+    const [leH, leM] = config.lunchBreakEnd.split(':').map(Number)
+    lunchStart = lsH * 60 + lsM
+    lunchEnd = leH * 60 + leM
+  }
+
+  // 2. Active resources (single query)
+  const resources = await db.resource.findMany({
+    where: { configId: config.id, active: true },
+    orderBy: { sortOrder: 'asc' },
+    select: { id: true },
+  })
+
+  // 3. ALL bookings in the date range (single query with composite index)
+  const rangeStart = new Date(startDate + 'T00:00:00')
+  const rangeEnd = new Date(endDate + 'T23:59:59')
+  const allBookings = await db.booking.findMany({
+    where: {
+      startTime: { gte: rangeStart, lt: rangeEnd },
+      status: { in: ['confirmed', 'pending', 'blocked'] },
+      configId: config.id,
+    },
+    select: { startTime: true, endTime: true, resourceId: true },
+  })
+
+  // Group bookings by date string for fast lookup
+  const bookingsByDate = new Map<string, typeof allBookings>()
+  for (const b of allBookings) {
+    const dateKey = b.startTime.toISOString().split('T')[0]
+    const existing = bookingsByDate.get(dateKey)
+    if (existing) existing.push(b)
+    else bookingsByDate.set(dateKey, [b])
+  }
+
+  // Compute availability for each day in range
+  const STEP = 15
+  const result: Record<string, SlotResult['availability']> = {}
+
+  const cur = new Date(startDate + 'T00:00:00')
+  const end = new Date(endDate + 'T00:00:00')
+
+  while (cur <= end) {
+    const dateStr = cur.toISOString().split('T')[0]
+    const dayOfWeek = cur.getDay() === 0 ? 7 : cur.getDay()
+
+    // Closed?
+    if (closedDateSet.has(dateStr)) {
+      result[dateStr] = 'none'
+      cur.setDate(cur.getDate() + 1)
+      continue
+    }
+
+    // Working hours?
+    const wh = workingHoursByDay.get(dayOfWeek)
+    if (!wh) {
+      result[dateStr] = 'none'
+      cur.setDate(cur.getDate() + 1)
+      continue
+    }
+
+    const { openMinutes, closeMinutes } = wh
+
+    // Get bookings for this specific day
+    const dayBookings = bookingsByDate.get(dateStr) || []
+
+    // Build per-resource and unassigned ranges
+    const resourceRanges = resources.map(r => ({
+      id: r.id,
+      bookedRanges: [] as { start: number; end: number }[],
+    }))
+    const unassignedRanges: { start: number; end: number }[] = []
+
+    for (const b of dayBookings) {
+      const bs = b.startTime.getHours() * 60 + b.startTime.getMinutes()
+      const be = b.endTime.getHours() * 60 + b.endTime.getMinutes()
+      const range = { start: bs, end: be }
+
+      if (b.resourceId) {
+        const res = resourceRanges.find(r => r.id === b.resourceId)
+        if (res) res.bookedRanges.push(range)
+        else unassignedRanges.push(range)
+      } else {
+        unassignedRanges.push(range)
+      }
+    }
+
+    // Count available slots
+    let availableCount = 0
+    let totalPossible = 0
+
+    for (let t = openMinutes; t + totalDurationMinutes <= closeMinutes; t += STEP) {
+      totalPossible++
+      const slotEnd = t + totalDurationMinutes
+
+      // Lunch break check
+      if (lunchStart >= 0 && lunchEnd >= 0 && t < lunchEnd && slotEnd > lunchStart) {
+        continue
+      }
+
+      // Check if free on at least one resource
+      let hasFree = false
+      for (const resource of resourceRanges) {
+        let blocked = false
+        for (const range of unassignedRanges) {
+          if (t < range.end && slotEnd > range.start) { blocked = true; break }
+        }
+        if (blocked) continue
+
+        let isFree = true
+        for (const range of resource.bookedRanges) {
+          if (t < range.end && slotEnd > range.start) { isFree = false; break }
+        }
+        if (isFree) { hasFree = true; break }
+      }
+      if (hasFree) availableCount++
+    }
+
+    // Determine availability level
+    totalPossible = Math.max(1, totalPossible)
+    const usedRatio = 1 - (availableCount / totalPossible)
+
+    if (availableCount === 0) {
+      result[dateStr] = 'none'
+    } else if (usedRatio > 0.6) {
+      result[dateStr] = 'low'
+    } else if (usedRatio > 0.3) {
+      result[dateStr] = 'medium'
+    } else {
+      result[dateStr] = 'high'
+    }
+
+    cur.setDate(cur.getDate() + 1)
+  }
+
+  return result
 }
 
 /**

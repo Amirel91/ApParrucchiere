@@ -250,44 +250,13 @@ export default function PrenotaPage() {
     const to = formatDate(lastDay)
 
     try {
-      const res = await fetch(`/api/slots?date=${from}&duration=${totalSlotDuration}`)
-      const startData = await res.json()
+      // OPTIMIZED: Single batch API call instead of 30 individual calls
+      const res = await fetch(`/api/slots/batch?startDate=${from}&endDate=${to}&duration=${totalSlotDuration}`)
+      const data = await res.json()
 
-      const res2 = await fetch(`/api/slots?date=${to}&duration=${totalSlotDuration}`)
-      const endData = await res2.json()
-
-      const newAvail: Record<string, AvailabilityLevel> = { ...dayAvailabilities }
-      if (startData.slots) {
-        newAvail[from] = startData.availability
+      if (typeof data === 'object' && data !== null) {
+        setDayAvailabilities(data as Record<string, AvailabilityLevel>)
       }
-      if (endData.slots) {
-        newAvail[to] = endData.availability
-      }
-
-      // Fetch all days in between (batch)
-      const daysInMonth = lastDay.getDate()
-      const promises: Promise<void>[] = []
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-        if (d !== 1 && d !== daysInMonth) {
-          promises.push(
-            fetch(`/api/slots?date=${dateStr}&duration=${totalSlotDuration}`)
-              .then(r => r.json())
-              .then(data => {
-                newAvail[dateStr] = data.availability || 'none'
-              })
-              .catch(() => {})
-          )
-        }
-      }
-
-      // Fetch in parallel batches
-      const batchSize = 5
-      for (let i = 0; i < promises.length; i += batchSize) {
-        await Promise.all(promises.slice(i, i + batchSize))
-      }
-
-      setDayAvailabilities(newAvail)
     } catch (e) {
       console.error('Error fetching availability:', e)
     }

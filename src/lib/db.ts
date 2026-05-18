@@ -4,9 +4,20 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient()
+function createPrismaClient(): PrismaClient {
+  return new PrismaClient({
+    // Neon serverless-optimized settings:
+    // - In Vercel, each function instance may spin up/down rapidly.
+    // - PgBouncer (via Neon pooler) handles connection multiplexing.
+    // - Use datasourceUrl to override the URL from schema.prisma at runtime.
+    datasourceUrl: process.env.DATABASE_URL,
+    log: process.env.NODE_ENV === 'development'
+      ? ['warn', 'error']
+      : ['error'],
+  })
+}
+
+export const db = globalForPrisma.prisma ?? createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
 
@@ -136,6 +147,17 @@ const MIGRATION_SQL = [
       SELECT 1 FROM "Resource" r WHERE r."configId" = bc."id"
     );
   END $$`,
+  // ============ PERFORMANCE INDEXES ============
+  // Composite index for calendar queries: filter bookings by config + time range
+  `CREATE INDEX IF NOT EXISTS "Booking_configId_startTime_idx" ON "Booking"("configId", "startTime")`,
+  // Index for status-based filtering (stats, cancelled bookings, etc.)
+  `CREATE INDEX IF NOT EXISTS "Booking_status_startTime_idx" ON "Booking"("status", "startTime")`,
+  // Index for active services lookup
+  `CREATE INDEX IF NOT EXISTS "Service_configId_active_idx" ON "Service"("configId", "active")`,
+  // Index for active resources lookup
+  `CREATE INDEX IF NOT EXISTS "Resource_configId_active_idx" ON "Resource"("configId", "active")`,
+  // Index for working hours lookup
+  `CREATE INDEX IF NOT EXISTS "WorkingHours_configId_idx" ON "WorkingHours"("configId")`,
 ]
 
 /**

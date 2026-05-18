@@ -4,8 +4,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL")
+  url       = env("DATABASE_URL")          // Neon pooler URL (recommended for serverless)
+  directUrl = env("DATABASE_URL")          // Falls back to same URL; set DATABASE_DIRECT_URL for separate direct connection
 }
 
 // ============ TENANT (Multi-tenancy) ============
@@ -80,6 +80,8 @@ model Service {
 
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+
+  @@index([configId, active])
 }
 
 // ============ RESOURCES (Postazioni / Collaboratori) ============
@@ -97,6 +99,8 @@ model Resource {
 
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+
+  @@index([configId, active])
 }
 
 // ============ BOOKINGS ============
@@ -123,6 +127,9 @@ model Booking {
 
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+
+  @@index([configId, startTime])
+  @@index([status, startTime])
 }
 
 // ============ BOOKING-SERVICE PIVOT ============
@@ -150,6 +157,7 @@ model WorkingHours {
   config    BusinessConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
 
   @@unique([configId, dayOfWeek])
+  @@index([configId])
 }
 
 // ============ CLOSED DATES ============
