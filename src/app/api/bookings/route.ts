@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, ensureDbSchema } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { bookingSchema } from '@/lib/validations'
-import { isSlotAvailable } from '@/lib/slot-algorithm'
+import { isSlotAvailable, findFreeResource } from '@/lib/slot-algorithm'
 import { getTenantConfig, requireTenantConfig } from '@/lib/tenant'
 
 // GET /api/bookings - Admin: get all bookings
@@ -36,6 +36,9 @@ export async function GET(request: NextRequest) {
       include: {
         services: {
           include: { service: true },
+        },
+        resource: {
+          select: { id: true, name: true },
         },
       },
       orderBy: { startTime: 'asc' },
@@ -90,6 +93,9 @@ export async function POST(request: NextRequest) {
     const startTime = new Date(`${data.date}T${data.time}:00`)
     const endTime = new Date(startTime.getTime() + totalDuration * 60 * 1000)
 
+    // Auto-assign to the first available resource
+    const resourceId = await findFreeResource(data.date, data.time, totalDuration, config.id)
+
     // Create booking with services
     const booking = await db.booking.create({
       data: {
@@ -102,6 +108,7 @@ export async function POST(request: NextRequest) {
         totalPrice,
         status: 'confirmed',
         configId: config.id,
+        ...(resourceId && { resourceId }),
         services: {
           create: data.serviceIds.map((serviceId: string) => ({
             serviceId,
@@ -110,6 +117,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         services: { include: { service: true } },
+        resource: { select: { id: true, name: true } },
       },
     })
 

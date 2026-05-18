@@ -18,6 +18,7 @@ interface BookingWithServices {
   endTime: string
   totalPrice: number
   status: string
+  resource?: { id: string; name: string } | null
   services: { service: { name: string; price: number; durationMinutes: number; cleanupMinutes: number } }[]
 }
 
@@ -351,6 +352,11 @@ export default function AdminCalendario() {
                     </div>
                     <div className="text-sm text-stone-600">{booking.customerName} {booking.customerSurname}</div>
                     <div className="text-xs text-stone-400 mt-1">{booking.services.map(bs => bs.service.name).join(', ')} &middot; EUR{booking.totalPrice.toFixed(2)}</div>
+                    {booking.resource && (
+                      <div className="mt-1">
+                        <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 font-medium">{booking.resource.name}</span>
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
@@ -376,7 +382,12 @@ export default function AdminCalendario() {
                     </div>
                     <div className="text-sm text-stone-600 mb-3">{booking.services.map(bs => bs.service.name).join(', ')}</div>
                     <div className="flex justify-between items-center">
-                      <span className="font-semibold text-stone-900 text-sm">EUR{booking.totalPrice.toFixed(2)}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-stone-900 text-sm">EUR{booking.totalPrice.toFixed(2)}</span>
+                        {booking.resource && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 font-medium">{booking.resource.name}</span>
+                        )}
+                      </div>
                       <div className="flex gap-1">
                         <button onClick={() => setSelectedBooking(booking)} className="text-xs px-2 py-1.5 rounded-md text-stone-600 hover:bg-stone-100 transition-colors">Dettagli</button>
                         {booking.status !== 'cancelled' && (
@@ -408,13 +419,14 @@ export default function AdminCalendario() {
                   <th className="text-left px-4 py-3 text-xs font-medium text-stone-500 uppercase">Cliente</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-stone-500 uppercase">Servizi</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-stone-500 uppercase">Totale</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-stone-500 uppercase hidden lg:table-cell">Postazione</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-stone-500 uppercase">Stato</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-stone-500 uppercase print:hidden">Azioni</th>
                 </tr>
               </thead>
               <tbody>
                 {bookings.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-stone-400 text-sm">Nessuna prenotazione questo mese</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-stone-400 text-sm">Nessuna prenotazione questo mese</td></tr>
                 ) : (
                   bookings.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()).map(booking => (
                     <tr key={booking.id} className="border-b border-stone-100 hover:bg-stone-50">
@@ -423,6 +435,7 @@ export default function AdminCalendario() {
                       <td className="px-4 py-3 text-sm font-medium">{booking.customerName} {booking.customerSurname}</td>
                       <td className="px-4 py-3 text-sm text-stone-500">{booking.services.map(bs => bs.service.name).join(', ')}</td>
                       <td className="px-4 py-3 text-sm font-medium">EUR{booking.totalPrice.toFixed(2)}</td>
+                      <td className="px-4 py-3 hidden lg:table-cell">{booking.resource ? <span className="text-xs px-2 py-1 rounded-full bg-stone-100 text-stone-600 font-medium">{booking.resource.name}</span> : null}</td>
                       <td className="px-4 py-3"><span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[booking.status] || ''}`}>{statusLabels[booking.status] || booking.status}</span></td>
                       <td className="px-4 py-3 print:hidden">
                         <div className="flex gap-1">
@@ -522,6 +535,11 @@ export default function AdminCalendario() {
                         </div>
                         <div className="text-sm text-stone-600">{booking.customerName} {booking.customerSurname}</div>
                         <div className="text-xs text-stone-400 mt-1">{booking.services.map(bs => bs.service.name).join(', ')} &middot; EUR{booking.totalPrice.toFixed(2)}</div>
+                        {booking.resource && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 font-medium">{booking.resource.name}</span>
+                          </div>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -619,7 +637,12 @@ export default function AdminCalendario() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-stone-700 mb-2">Servizi</div>
+                  <div className="text-sm font-medium text-stone-700 mb-2">
+                    Servizi
+                    {selectedBooking.resource && (
+                      <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 font-medium align-middle">{selectedBooking.resource.name}</span>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     {selectedBooking.services.map(bs => (
                       <div key={bs.service.name} className="flex justify-between text-sm p-2 rounded-lg bg-stone-50">

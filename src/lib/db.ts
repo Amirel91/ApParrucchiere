@@ -96,6 +96,44 @@ const MIGRATION_SQL = [
   `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "nexiSubscriptionId" TEXT`,
   `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "cancelReason" TEXT`,
   `ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3)`,
+  // ============ MULTI-RESOURCE MIGRATIONS ============
+  `CREATE TABLE IF NOT EXISTS "Resource" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "configId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Resource_configId_fkey') THEN
+      ALTER TABLE "Resource" ADD CONSTRAINT "Resource_configId_fkey"
+        FOREIGN KEY ("configId") REFERENCES "BusinessConfig"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+  `ALTER TABLE "Booking" ADD COLUMN IF NOT EXISTS "resourceId" TEXT`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Booking_resourceId_fkey') THEN
+      ALTER TABLE "Booking" ADD CONSTRAINT "Booking_resourceId_fkey"
+        FOREIGN KEY ("resourceId") REFERENCES "Resource"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+  // Auto-create default "Standard" resource for each config that has no resources yet
+  `DO $$ BEGIN
+    INSERT INTO "Resource" ("id", "name", "active", "sortOrder", "configId", "createdAt", "updatedAt")
+    SELECT
+      gen_random_uuid()::text,
+      'Standard',
+      true,
+      0,
+      bc."id",
+      NOW(), NOW()
+    FROM "BusinessConfig" bc
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "Resource" r WHERE r."configId" = bc."id"
+    );
+  END $$`,
 ]
 
 /**

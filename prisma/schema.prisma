@@ -52,6 +52,7 @@ model BusinessConfig {
   closedDates     ClosedDate[]
   services        Service[]
   bookings        Booking[]
+  resources       Resource[]
 
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -79,6 +80,23 @@ model Service {
   updatedAt       DateTime        @updatedAt
 }
 
+// ============ RESOURCES (Postazioni / Collaboratori) ============
+
+model Resource {
+  id              String         @id @default(cuid())
+  name            String
+  active          Boolean        @default(true)
+  sortOrder       Int            @default(0)
+
+  configId        String
+  config          BusinessConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  bookings        Booking[]
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
 // ============ BOOKINGS ============
 
 model Booking {
@@ -94,6 +112,10 @@ model Booking {
 
   configId        String
   config          BusinessConfig  @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  // Nullable for backward compat: existing bookings have no resource
+  resourceId      String?
+  resource        Resource?       @relation(fields: [resourceId], references: [id], onDelete: SetNull)
 
   services        BookingService[]
 

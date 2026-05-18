@@ -7,6 +7,7 @@ import { requireTenantConfig } from '@/lib/tenant'
  * POST /api/time-blocks
  * Create a manual time block (pause, phone appointment, etc.)
  * Stored as a booking with status="blocked".
+ * Optionally scoped to a specific resource via resourceId.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -16,15 +17,25 @@ export async function POST(request: NextRequest) {
     const config = await requireTenantConfig(request)
 
     const body = await request.json()
-    const { title, date, startTime, durationMinutes } = body
+    const { title, date, startTime, durationMinutes, resourceId } = body
 
     if (!title || !date || !startTime || !durationMinutes) {
-      return NextResponse.json({ error: 'Compila tutti i campi' }, { status: 400 })
+      return NextResponse.json({ error: 'Compila tutti i campi obbligatori' }, { status: 400 })
     }
 
     const mins = parseInt(durationMinutes, 10)
     if (isNaN(mins) || mins < 5 || mins > 480) {
       return NextResponse.json({ error: 'Durata non valida (5-480 min)' }, { status: 400 })
+    }
+
+    // If resourceId is provided, verify it belongs to this config
+    if (resourceId) {
+      const resource = await db.resource.findFirst({
+        where: { id: resourceId, configId: config.id },
+      })
+      if (!resource) {
+        return NextResponse.json({ error: 'Risorsa non trovata' }, { status: 404 })
+      }
     }
 
     const start = new Date(`${date}T${startTime}:00`)
@@ -40,6 +51,10 @@ export async function POST(request: NextRequest) {
         totalPrice: 0,
         status: 'blocked',
         configId: config.id,
+        ...(resourceId && { resourceId }),
+      },
+      include: {
+        resource: { select: { id: true, name: true } },
       },
     })
 
