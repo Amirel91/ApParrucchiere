@@ -102,3 +102,27 @@ Stage Summary:
 - 16 files modified across components, pages, lib, and seed
 - All barber/salon/hair-specific references removed
 - Build successful, pushed to main
+---
+Task ID: 2
+Agent: Main Agent
+Task: Espandere categorie di attivita + implementare suggerimenti rapidi servizi
+
+Work Log:
+- Rewrote activity-types.ts with 11 universal categories (was 12 niche beauty-focused)
+- New categories: Estetica & Beauty, Saloni & Capelli, Benessere/SPA, Tatuaggi/Piercing, Auto/Moto, Fisioterapia/Osteopatia, Personal Trainer/Sport, Studi Legali/Consulenza, Pet Grooming, Scuole/Corsi, Altro
+- Created service-suggestions.ts with 40+ predefined service templates mapped by activity type
+- Added activityType column to BusinessConfig (Prisma schema + DDL migration in db.ts)
+- Added activityType field to register API with validation against valid types
+- Added "Tipo di Attivita" dropdown to landing page registration form
+- /api/config already returns full config object, so activityType is automatically exposed
+- Added quick suggestion badges (Zap icon + clickable chips) to both admin/servizi/page.tsx and ServicesManager.tsx
+- ALTRO category returns empty array = no suggestions shown
+- Backward compatible: existing tenants default to 'ALTRO'
+- Build successful, pushed to GitHub as commit c362396
+
+Stage Summary:
+- 8 files modified, 1 new file created
+- 11 universal activity categories with 40+ service templates
+- Registration form now includes activity type selection
+- Admin services pages show contextual quick-fill suggestions
+- Zero impact on multi-resource and multi-tenant logic
