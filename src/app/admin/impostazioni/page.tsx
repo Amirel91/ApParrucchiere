@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Save, Store, Clock, Key, Check, AlertCircle, UtensilsCrossed, Users, Plus, Pencil, Trash2, X } from 'lucide-react'
+import { Save, Store, Clock, Key, Check, AlertCircle, UtensilsCrossed, Users, Plus, Pencil, Trash2, X, ShieldAlert, Plane } from 'lucide-react'
 
 interface BusinessConfig {
   id: string
@@ -13,6 +13,14 @@ interface BusinessConfig {
   lunchBreakEnabled: boolean
   lunchBreakStart: string
   lunchBreakEnd: string
+  minNoticeHours: number
+}
+
+interface ClosedPeriod {
+  id: string
+  startDate: string
+  endDate: string
+  reason: string
 }
 
 interface WorkingHour {
@@ -51,6 +59,7 @@ const defaultConfig: BusinessConfig = {
   lunchBreakEnabled: false,
   lunchBreakStart: '12:30',
   lunchBreakEnd: '14:00',
+  minNoticeHours: 1,
 }
 
 export default function AdminImpostazioni() {
@@ -75,6 +84,12 @@ export default function AdminImpostazioni() {
   const [savingResource, setSavingResource] = useState(false)
   const [deletingResource, setDeletingResource] = useState<string | null>(null)
 
+  // Closed Periods state
+  const [closedPeriods, setClosedPeriods] = useState<ClosedPeriod[]>([])
+  const [newPeriod, setNewPeriod] = useState({ startDate: '', endDate: '', reason: '' })
+  const [periodError, setPeriodError] = useState('')
+  const [addingPeriod, setAddingPeriod] = useState(false)
+
   useEffect(() => {
     let configLoaded = false
     let hoursLoaded = false
@@ -94,6 +109,7 @@ export default function AdminImpostazioni() {
             lunchBreakEnabled: data.lunchBreakEnabled || false,
             lunchBreakStart: data.lunchBreakStart || '12:30',
             lunchBreakEnd: data.lunchBreakEnd || '14:00',
+            minNoticeHours: data.minNoticeHours ?? 1,
           })
         }
       })
@@ -105,6 +121,12 @@ export default function AdminImpostazioni() {
       .then(data => { if (Array.isArray(data) && data.length > 0) setHours(data) })
       .catch(err => console.error('Working hours fetch error:', err))
       .finally(() => { hoursLoaded = true; checkDone() })
+
+    // Load closed periods
+    fetch('/api/closed-periods')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setClosedPeriods(data) })
+      .catch(err => console.error('Closed periods fetch error:', err))
   }, [])
 
   const fetchResources = async () => {
@@ -155,7 +177,7 @@ export default function AdminImpostazioni() {
     } finally { setSaving(false) }
   }
 
-  const updateConfigField = (field: keyof BusinessConfig, value: string | boolean) => {
+  const updateConfigField = (field: keyof BusinessConfig, value: string | boolean | number) => {
     setConfig(prev => ({ ...prev, [field]: value }))
   }
 
@@ -246,6 +268,35 @@ export default function AdminImpostazioni() {
       fetchResources()
     } catch { alert('Errore di connessione') }
     finally { setDeletingResource(null) }
+  }
+
+  // ---- Closed Periods CRUD ----
+  const addClosedPeriod = async () => {
+    setPeriodError('')
+    if (!newPeriod.startDate || !newPeriod.endDate) { setPeriodError('Inserisci entrambe le date'); return }
+    if (newPeriod.startDate > newPeriod.endDate) { setPeriodError('La data di fine deve essere successiva alla data di inizio'); return }
+    setAddingPeriod(true)
+    try {
+      const res = await fetch('/api/closed-periods', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newPeriod) })
+      if (!res.ok) { const data = await res.json(); throw new Error(data.error || "Errore nell'aggiunta del periodo") }
+      const created = await res.json()
+      setClosedPeriods(prev => [...prev, created].sort((a, b) => a.startDate.localeCompare(b.startDate)))
+      setNewPeriod({ startDate: '', endDate: '', reason: '' })
+    } catch (err) { setPeriodError(err instanceof Error ? err.message : 'Errore') }
+    finally { setAddingPeriod(false) }
+  }
+
+  const deleteClosedPeriod = async (id: string) => {
+    try {
+      const res = await fetch(`/api/closed-periods?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      setClosedPeriods(prev => prev.filter(p => p.id !== id))
+    } catch { setPeriodError('Errore nella rimozione del periodo') }
+  }
+
+  function formatDateDisplay(dateStr: string): string {
+    const [y, m, d] = dateStr.split('-')
+    return `${d}/${m}/${y}`
   }
 
   if (loading) {
@@ -387,6 +438,87 @@ export default function AdminImpostazioni() {
                   <label className="block text-xs font-medium text-stone-500 mb-1">Alle</label>
                   <input type="time" value={config.lunchBreakEnd} onChange={e => updateConfigField('lunchBreakEnd', e.target.value)} className="px-3 py-2 rounded-lg border border-stone-200 bg-white text-stone-900 outline-none focus:border-stone-900 transition-colors" />
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Preavviso Minimo */}
+          <div className="bg-white rounded-xl border border-stone-200 p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <ShieldAlert className="w-5 h-5 text-stone-500" />
+              <h2 className="font-semibold text-stone-900">Preavviso Minimo di Prenotazione</h2>
+            </div>
+            <p className="text-stone-500 text-sm mb-4">
+              I clienti non potranno prenotare slot orari piu vicini di <strong className="text-stone-700">{config.minNoticeHours} {config.minNoticeHours === 1 ? 'ora' : 'ore'}</strong> da adesso.
+              Questo protegge dalle prenotazioni dell&apos;ultimo minuto.
+            </p>
+            <div className="flex items-center gap-3 max-w-xs">
+              <input
+                type="number"
+                min={0}
+                max={48}
+                value={config.minNoticeHours}
+                onChange={e => updateConfigField('minNoticeHours', Math.max(0, Math.min(48, parseInt(e.target.value) || 0)))}
+                className="w-24 px-3 py-2.5 rounded-xl border-2 border-stone-200 bg-white text-stone-900 text-center font-medium outline-none focus:border-stone-900 transition-colors"
+              />
+              <span className="text-sm text-stone-500">ore (max 48, 0 = disabilitato)</span>
+            </div>
+          </div>
+
+          {/* Ferie e Chiusure Straordinarie */}
+          <div className="bg-white rounded-xl border border-stone-200 p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Plane className="w-5 h-5 text-stone-500" />
+              <h2 className="font-semibold text-stone-900">Ferie e Chiusure Straordinarie</h2>
+            </div>
+            <p className="text-stone-500 text-sm mb-5">
+              Blocca interi giorni o settimane (es. ferie estive, ristrutturazione).
+              I giorni selezionati saranno automaticamente chiusi al calendario del cliente.
+            </p>
+
+            {periodError && (<div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{periodError}</div>)}
+
+            <div className="bg-stone-50 rounded-xl p-4 mb-5">
+              <p className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-3">Nuovo Periodo</p>
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-stone-600 mb-1">Data inizio</label>
+                  <input type="date" value={newPeriod.startDate} onChange={e => setNewPeriod(prev => ({ ...prev, startDate: e.target.value }))} className="w-full px-3 py-2.5 rounded-lg border border-stone-200 bg-white text-stone-900 outline-none focus:border-stone-900 transition-colors text-sm" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-stone-600 mb-1">Data fine</label>
+                  <input type="date" value={newPeriod.endDate} onChange={e => setNewPeriod(prev => ({ ...prev, endDate: e.target.value }))} min={newPeriod.startDate} className="w-full px-3 py-2.5 rounded-lg border border-stone-200 bg-white text-stone-900 outline-none focus:border-stone-900 transition-colors text-sm" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-stone-600 mb-1">Motivo (opzionale)</label>
+                  <input type="text" value={newPeriod.reason} onChange={e => setNewPeriod(prev => ({ ...prev, reason: e.target.value }))} placeholder="Es. Ferie estive" className="w-full px-3 py-2.5 rounded-lg border border-stone-200 bg-white text-stone-900 placeholder-stone-400 outline-none focus:border-stone-900 transition-colors text-sm" />
+                </div>
+                <button onClick={addClosedPeriod} disabled={addingPeriod || !newPeriod.startDate || !newPeriod.endDate} className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 text-white text-sm font-medium hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all shrink-0">
+                  {addingPeriod ? (<div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />) : (<><Plus className="w-4 h-4" />Aggiungi</>)}
+                </button>
+              </div>
+            </div>
+
+            {closedPeriods.length === 0 ? (
+              <p className="text-sm text-stone-400 text-center py-4">Nessun periodo di chiusura configurato.</p>
+            ) : (
+              <div className="space-y-2">
+                {closedPeriods.map(period => (
+                  <div key={period.id} className="flex items-center justify-between gap-3 py-3 px-4 rounded-xl bg-stone-50 border border-stone-100">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-stone-800 truncate">
+                          {formatDateDisplay(period.startDate)}{period.startDate !== period.endDate ? ` — ${formatDateDisplay(period.endDate)}` : ''}
+                        </p>
+                        {period.reason && (<p className="text-xs text-stone-500 truncate">{period.reason}</p>)}
+                      </div>
+                    </div>
+                    <button onClick={() => deleteClosedPeriod(period.id)} className="flex items-center justify-center w-8 h-8 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0" title="Elimina periodo">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>

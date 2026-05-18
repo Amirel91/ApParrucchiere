@@ -43,6 +43,7 @@ export const configSchema = z.object({
   lunchBreakEnabled: z.boolean().default(false),
   lunchBreakStart: z.string().regex(/^\d{2}:\d{2}$/).default('12:30'),
   lunchBreakEnd: z.string().regex(/^\d{2}:\d{2}$/).default('14:00'),
+  minNoticeHours: z.coerce.number().int().min(0, 'Il preavviso minimo non puo essere negativo').max(48, 'Max 48 ore').default(1),
 })
 
 export const workingHoursSchema = z.object({
@@ -57,6 +58,16 @@ export const workingHoursSchema = z.object({
 export const closedDateSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data non valida'),
   reason: z.string().optional().default(''),
+})
+
+// ============ ADMIN - CLOSED PERIODS ============
+
+export const closedPeriodSchema = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inizio non valida'),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data fine non valida'),
+  reason: z.string().optional().default(''),
+}).refine(data => data.startDate <= data.endDate, {
+  message: 'La data di fine deve essere uguale o successiva alla data di inizio',
 })
 
 // ============ ADMIN - AUTH ============

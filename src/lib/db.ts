@@ -158,6 +158,24 @@ const MIGRATION_SQL = [
   `CREATE INDEX IF NOT EXISTS "Resource_configId_active_idx" ON "Resource"("configId", "active")`,
   // Index for working hours lookup
   `CREATE INDEX IF NOT EXISTS "WorkingHours_configId_idx" ON "WorkingHours"("configId")`,
+  // ============ MIN NOTICE HOURS ============
+  `ALTER TABLE "BusinessConfig" ADD COLUMN IF NOT EXISTS "minNoticeHours" INTEGER NOT NULL DEFAULT 1`,
+  // ============ CLOSED PERIODS (Vacations / Extraordinary Closures) ============
+  `CREATE TABLE IF NOT EXISTS "ClosedPeriod" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "startDate" TEXT NOT NULL,
+    "endDate" TEXT NOT NULL,
+    "reason" TEXT NOT NULL DEFAULT '',
+    "configId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ClosedPeriod_configId_fkey') THEN
+      ALTER TABLE "ClosedPeriod" ADD CONSTRAINT "ClosedPeriod_configId_fkey"
+        FOREIGN KEY ("configId") REFERENCES "BusinessConfig"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+  END $$`,
+  `CREATE INDEX IF NOT EXISTS "ClosedPeriod_configId_idx" ON "ClosedPeriod"("configId")`,
 ]
 
 /**

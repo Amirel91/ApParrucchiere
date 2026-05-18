@@ -20,6 +20,45 @@ interface ResourceWithRanges {
 }
 
 /**
+ * Check if a date string ("YYYY-MM-DD") falls within any of the given closed periods.
+ */
+function isDateInClosedPeriod(
+  dateStr: string,
+  closedPeriods: { startDate: string; endDate: string }[]
+): boolean {
+  return closedPeriods.some(cp => dateStr >= cp.startDate && dateStr <= cp.endDate)
+}
+
+/**
+ * Get the current time in Rome timezone as minutes-from-midnight.
+ */
+function getCurrentMinutesRome(): number {
+  const now = new Date()
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Rome',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now)
+  const h = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10)
+  const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10)
+  return h * 60 + m
+}
+
+/**
+ * Check whether a date string ("YYYY-MM-DD") is today in Europe/Rome.
+ */
+function isTodayRome(dateStr: string): boolean {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Rome',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date())
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? ''
+  const todayStr = `${get('year')}-${get('month')}-${get('day')}`
+  return dateStr === todayStr
+}
+
+/**
  * Smart slot algorithm (Multi-Resource):
  *
  * Given a date and a total duration (in minutes), find all time slots
@@ -41,10 +80,10 @@ export async function getAvailableSlots(
   await ensureDbSchema()
   const dayOfWeek = getDayOfWeekRome(dateStr) // 1=Mon ... 7=Sun (Europe/Rome)
 
-  // Get working hours for this day
+  // Get working hours for this day + closed periods
   const config = await db.businessConfig.findFirst({
     where: configId ? { id: configId } : undefined,
-    include: { workingHours: true, closedDates: true },
+    include: { workingHours: true, closedDates: true, closedPeriods: true },
   })
 
   if (!config) {
@@ -54,6 +93,11 @@ export async function getAvailableSlots(
   // Check if this date is explicitly closed
   const isClosedDate = config.closedDates.some(cd => cd.date === dateStr)
   if (isClosedDate) {
+    return { date: dateStr, slots: [], availability: 'none' }
+  }
+
+  // Check if this date falls within a closed period (vacations etc.)
+  if (isDateInClosedPeriod(dateStr, config.closedPeriods)) {
     return { date: dateStr, slots: [], availability: 'none' }
   }
 
@@ -132,12 +176,21 @@ export async function getAvailableSlots(
     }
   }
 
+  // Minimum notice: if today, hide slots too close to now
+  const minNoticeMinutes = (config.minNoticeHours || 1) * 60
+  const cutoffMinutes = isTodayRome(dateStr) ? getCurrentMinutesRome() + minNoticeMinutes : -1
+
   // Find all possible start times (every 15 min)
   const STEP = 15
   const availableSlots: string[] = []
 
   for (let t = openMinutes; t + totalDurationMinutes <= closeMinutes; t += STEP) {
     const slotEnd = t + totalDurationMinutes
+
+    // Minimum notice check: skip slots that start too soon
+    if (cutoffMinutes >= 0 && t < cutoffMinutes) {
+      continue
+    }
 
     // Check if this slot overlaps with lunch break
     if (lunchStart >= 0 && lunchEnd >= 0) {
@@ -183,17 +236,17 @@ export async function getAvailableSlots(
   }
 
   // Calculate availability percentage for color coding
+  // GREEN  → ≥ 20% of slots still free (perceived as widely available)
+  // YELLOW → < 20% of slots free but not zero (scarce — encourages booking)
+  // RED    → 0 slots available (fully booked)
   const totalPossibleSlots = Math.max(1, Math.floor((closeMinutes - openMinutes - totalDurationMinutes) / STEP) + 1)
-  const usedSlots = totalPossibleSlots - availableSlots.length
-  const usedRatio = usedSlots / totalPossibleSlots
+  const freeRatio = availableSlots.length / totalPossibleSlots
 
   let availability: SlotResult['availability']
   if (availableSlots.length === 0) {
     availability = 'none'
-  } else if (usedRatio > 0.6) {
+  } else if (freeRatio < 0.2) {
     availability = 'low'
-  } else if (usedRatio > 0.3) {
-    availability = 'medium'
   } else {
     availability = 'high'
   }
@@ -287,10 +340,10 @@ export async function getBatchAvailability(
 ): Promise<Record<string, SlotResult['availability']>> {
   await ensureDbSchema()
 
-  // 1. Single query: config + working hours + closed dates
+  // 1. Single query: config + working hours + closed dates + closed periods
   const config = await db.businessConfig.findFirst({
     where: configId ? { id: configId } : undefined,
-    include: { workingHours: true, closedDates: true },
+    include: { workingHours: true, closedDates: true, closedPeriods: true },
   })
 
   if (!config) {
@@ -307,6 +360,12 @@ export async function getBatchAvailability(
 
   // Build lookup sets
   const closedDateSet = new Set(config.closedDates.map(cd => cd.date))
+  const closedPeriods = config.closedPeriods || []
+
+  // Minimum notice hours: cutoff for today's slots
+  const minNoticeMinutes = (config.minNoticeHours || 1) * 60
+  const nowMinutesRome = isTodayRome(startDate) ? getCurrentMinutesRome() : -1
+  const noticeCutoff = nowMinutesRome >= 0 ? nowMinutesRome + minNoticeMinutes : -1
   const workingHoursByDay = new Map<number, { openMinutes: number; closeMinutes: number }>()
   for (const wh of config.workingHours) {
     if (wh.closed) continue
@@ -365,8 +424,15 @@ export async function getBatchAvailability(
     const dateStr = cur
     const dayOfWeek = getDayOfWeekRome(dateStr)
 
-    // Closed?
+    // Closed (single day)?
     if (closedDateSet.has(dateStr)) {
+      result[dateStr] = 'none'
+      cur = addDays(cur, 1)
+      continue
+    }
+
+    // Closed (period/vacation)?
+    if (isDateInClosedPeriod(dateStr, closedPeriods)) {
       result[dateStr] = 'none'
       cur = addDays(cur, 1)
       continue
@@ -411,9 +477,17 @@ export async function getBatchAvailability(
     let availableCount = 0
     let totalPossible = 0
 
+    // Check if today: apply minimum notice cutoff
+    const dayCutoff = (noticeCutoff >= 0 && dateStr === formatDateRome(new Date())) ? noticeCutoff : -1
+
     for (let t = openMinutes; t + totalDurationMinutes <= closeMinutes; t += STEP) {
       totalPossible++
       const slotEnd = t + totalDurationMinutes
+
+      // Minimum notice check
+      if (dayCutoff >= 0 && t < dayCutoff) {
+        continue
+      }
 
       // Lunch break check
       if (lunchStart >= 0 && lunchEnd >= 0 && t < lunchEnd && slotEnd > lunchStart) {
@@ -439,15 +513,16 @@ export async function getBatchAvailability(
     }
 
     // Determine availability level
+    // GREEN  → ≥ 20% of slots still free (perceived as widely available)
+    // YELLOW → < 20% of slots free but not zero (scarce — encourages booking)
+    // RED    → 0 slots available (fully booked)
     totalPossible = Math.max(1, totalPossible)
-    const usedRatio = 1 - (availableCount / totalPossible)
+    const freeRatio = availableCount / totalPossible
 
     if (availableCount === 0) {
       result[dateStr] = 'none'
-    } else if (usedRatio > 0.6) {
+    } else if (freeRatio < 0.2) {
       result[dateStr] = 'low'
-    } else if (usedRatio > 0.3) {
-      result[dateStr] = 'medium'
     } else {
       result[dateStr] = 'high'
     }
@@ -478,8 +553,42 @@ export async function isDateClosed(dateStr: string, configId?: string): Promise<
   await ensureDbSchema()
   const config = await db.businessConfig.findFirst({
     where: configId ? { id: configId } : undefined,
-    include: { closedDates: true },
+    include: { closedDates: true, closedPeriods: true },
   })
   if (!config) return false
-  return config.closedDates.some(cd => cd.date === dateStr)
+  if (config.closedDates.some(cd => cd.date === dateStr)) return true
+  if (isDateInClosedPeriod(dateStr, config.closedPeriods)) return true
+  return false
+}
+
+/**
+ * Get all closed dates (single days + all days within closed periods)
+ * for a given date range. Useful for the client booking calendar.
+ */
+export async function getAllClosedDatesInRange(
+  startDate: string,
+  endDate: string,
+  configId?: string
+): Promise<string[]> {
+  await ensureDbSchema()
+  const config = await db.businessConfig.findFirst({
+    where: configId ? { id: configId } : undefined,
+    include: { closedDates: true, closedPeriods: true },
+  })
+  if (!config) return []
+
+  const closedSet = new Set<string>()
+  for (const cd of config.closedDates) {
+    if (cd.date >= startDate && cd.date <= endDate) closedSet.add(cd.date)
+  }
+  for (const cp of config.closedPeriods) {
+    const s = cp.startDate > startDate ? cp.startDate : startDate
+    const e = cp.endDate < endDate ? cp.endDate : endDate
+    let cur = s
+    while (cur <= e) {
+      closedSet.add(cur)
+      cur = addDays(cur, 1)
+    }
+  }
+  return Array.from(closedSet).sort()
 }

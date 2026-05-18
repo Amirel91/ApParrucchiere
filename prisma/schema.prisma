@@ -49,9 +49,12 @@ model BusinessConfig {
   lunchBreakEnabled Boolean      @default(false)
   lunchBreakStart   String       @default("12:30")  // "HH:MM"
   lunchBreakEnd     String       @default("14:00")  // "HH:MM"
+  // Minimum notice hours: clients cannot book slots closer than X hours from now
+  minNoticeHours     Int          @default(1)
 
   workingHours    WorkingHours[]
   closedDates     ClosedDate[]
+  closedPeriods   ClosedPeriod[]
   services        Service[]
   bookings        Booking[]
   resources       Resource[]
@@ -171,6 +174,21 @@ model ClosedDate {
   config    BusinessConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
 
   @@unique([configId, date])
+  createdAt DateTime @default(now())
+}
+
+// ============ CLOSED PERIODS (Vacations / Extraordinary Closures) ============
+
+model ClosedPeriod {
+  id        String   @id @default(cuid())
+  startDate String   // "YYYY-MM-DD"
+  endDate   String   // "YYYY-MM-DD" (inclusive)
+  reason    String   @default("")
+
+  configId  String
+  config    BusinessConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@index([configId])
   createdAt DateTime @default(now())
 }
 

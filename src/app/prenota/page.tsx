@@ -119,13 +119,36 @@ export default function PrenotaPage() {
       .catch(() => setLoading(false))
   }, [])
 
-  // Fetch closed dates when entering step 2
+  // Fetch closed dates and closed periods when entering step 2
   useEffect(() => {
     if (step === 2) {
-      fetch('/api/closed-dates')
+      // Fetch single closed dates
+      const closedDatesPromise = fetch('/api/closed-dates')
         .then(r => r.json())
-        .then(data => setClosedDates(Array.isArray(data) ? data.map((d: { date: string }) => d.date) : []))
-        .catch(() => setClosedDates([]))
+        .then(data => Array.isArray(data) ? data.map((d: { date: string }) => d.date) : [] as string[])
+        .catch(() => [] as string[])
+
+      // Fetch closed periods (vacations etc.) and expand to individual dates
+      const closedPeriodsPromise = fetch('/api/closed-periods')
+        .then(r => r.json())
+        .then((periods: Array<{ startDate: string; endDate: string }>) => {
+          if (!Array.isArray(periods)) return [] as string[]
+          const dates: string[] = []
+          for (const p of periods) {
+            let cur = new Date(p.startDate + 'T00:00:00')
+            const end = new Date(p.endDate + 'T00:00:00')
+            while (cur <= end) {
+              dates.push(cur.toISOString().split('T')[0])
+              cur.setDate(cur.getDate() + 1)
+            }
+          }
+          return dates
+        })
+        .catch(() => [] as string[])
+
+      Promise.all([closedDatesPromise, closedPeriodsPromise]).then(([singleDates, periodDates]) => {
+        setClosedDates([...new Set([...singleDates, ...periodDates])])
+      })
     }
   }, [step])
 
@@ -326,9 +349,9 @@ export default function PrenotaPage() {
     if (isDayClosed(dateStr)) return 'text-red-500 bg-red-50'
     const avail = dayAvailabilities[dateStr]
     if (!avail || avail === 'none') return 'text-stone-300'
-    if (avail === 'high') return 'text-emerald-600 bg-emerald-50'
-    if (avail === 'medium') return 'text-amber-600 bg-amber-50'
-    return 'text-red-500 bg-red-50'
+    if (avail === 'high' || avail === 'medium') return 'text-emerald-600 bg-emerald-50'
+    // 'low' = pochi posti ma ancora disponibili → giallo (NON rosso)
+    return 'text-amber-600 bg-amber-50'
   }
 
   const monthNames = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
