@@ -182,3 +182,37 @@ Stage Summary:
 - Root cause: TypeError on string.setDate() crashed getBatchAvailability, causing 500
 - Fix: 2-line change in slot-algorithm.ts + defensive fetch guard in prenota page
 - Calendar colors (green/yellow/red) and time slots should now display correctly
+
+---
+Task ID: 3
+Agent: main
+Task: Implement min-notice hours + closed periods (vacations) for admin protection
+
+Work Log:
+- Read all relevant files: schema, db.ts, slot-algorithm, admin settings, validations, prenota
+- Added minNoticeHours (Int, default 1) to BusinessConfig in Prisma schema
+- Created ClosedPeriod model (id, configId, startDate, endDate, reason) in Prisma schema
+- Added SQL migrations in db.ts for both new column and new table
+- Added closedPeriodSchema to validations.ts with startDate <= endDate refinement
+- Added minNoticeHours to configSchema Zod validation
+- Modified slot-algorithm.ts:
+  - Added isDateInClosedPeriod(), getCurrentMinutesRome(), isTodayRome() helpers
+  - getAvailableSlots: checks closedPeriods, filters slots within minNoticeMinutes
+  - getBatchAvailability: checks closedPeriods, applies notice cutoff for today
+  - isDateClosed: checks both single dates and closed periods
+  - Added getAllClosedDatesInRange() helper for client calendar
+- Created /api/closed-periods route (GET, POST, DELETE) with tenant isolation
+- Updated admin settings page (Orari tab):
+  - Added ShieldAlert section for minNoticeHours (numeric input, max 48, 0=disabled)
+  - Added Plane section for Ferie e Chiusure Straordinarie with full CRUD
+  - Properly merged with remote's existing Postazioni tab and resource management
+- Updated prenota page: fetches closedPeriods alongside closedDates and merges them
+- Resolved git merge conflicts between local and remote branches (rebase)
+- Verified 0 TypeScript errors in modified files
+- Pushed as 829e701
+
+Stage Summary:
+- minNoticeHours: configurable 0-48h per tenant, filters slot generation in Rome timezone
+- ClosedPeriod: date-range based closures with CRUD API and admin UI
+- Both features backward-compatible (default values for existing tenants)
+- Multi-resource and timezone logic fully preserved
