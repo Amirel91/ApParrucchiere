@@ -14,6 +14,7 @@ import {
   Home,
   Plus,
   Download,
+  Users,
 } from 'lucide-react'
 import { usePWAInstall } from '@/hooks/use-pwa-install'
 
@@ -31,6 +32,7 @@ const navItems = [
   { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays },
   { href: '/admin/prenota', label: 'Nuova Prenotazione', icon: Plus },
   { href: '/admin/servizi', label: 'Servizi', icon: Sparkles },
+  { href: '/admin/clienti', label: 'Clienti', icon: Users },
   { href: '/admin/impostazioni', label: 'Impostazioni', icon: Settings },
 ]
 

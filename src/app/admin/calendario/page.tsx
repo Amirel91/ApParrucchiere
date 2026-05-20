@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronLeft, ChevronRight, X, Phone, Mail, Clock, Euro, User,
   CalendarX, CalendarCheck, Printer, Trash2, Plus, Calendar, List, Lock,
+  MessageCircle,
 } from 'lucide-react'
 
 interface BookingWithServices {
@@ -51,6 +52,7 @@ export default function AdminCalendario() {
   const [blockTime, setBlockTime] = useState('')
   const [blockDuration, setBlockDuration] = useState('30')
   const [blockSaving, setBlockSaving] = useState(false)
+  const [shopName, setShopName] = useState('')
 
   const fetchMonthData = () => {
     const year = currentMonth.getFullYear()
@@ -70,6 +72,14 @@ export default function AdminCalendario() {
   }
 
   useEffect(() => { fetchMonthData() }, [currentMonth])
+
+  // Fetch shop name for WhatsApp messages
+  useEffect(() => {
+    fetch('/api/config')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.shopName) setShopName(data.shopName) })
+      .catch(() => {})
+  }, [])
 
   const isDateClosed = (dateStr: string) => closedDates.some(cd => cd.date === dateStr)
 
@@ -169,6 +179,18 @@ export default function AdminCalendario() {
 
   const statusColors: Record<string, string> = { confirmed: 'bg-emerald-100 text-emerald-700', pending: 'bg-amber-100 text-amber-700', cancelled: 'bg-red-100 text-red-700', blocked: 'bg-stone-200 text-stone-600' }
   const statusLabels: Record<string, string> = { confirmed: 'Confermata', pending: 'In attesa', cancelled: 'Annullata', blocked: 'Bloccato' }
+
+  const openWhatsApp = (b: BookingWithServices) => {
+    const phone = b.customerPhone.replace(/[^0-9]/g, '')
+    const date = formatDisplayDate(b.startTime)
+    const time = formatTime(b.startTime)
+    const services = b.services.map(s => s.service.name).join(', ')
+    const cancelUrl = `${window.location.origin}/prenota/cancella/${b.id}`
+    const text = encodeURIComponent(
+      `Ciao ${b.customerName}, ti ricordiamo il tuo appuntamento del ${date} alle ore ${time} presso ${shopName || 'la nostra attivita'}. Servizi: ${services}. Se hai bisogno di disdire o modificare, puoi farlo in un click da qui: ${cancelUrl}. A presto!`
+    )
+    window.open(`https://wa.me/${phone}?text=${text}`, '_blank')
+  }
 
   if (loading) {
     return (<div className="flex items-center justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-stone-300 border-t-stone-900 rounded-full" /></div>)
@@ -637,6 +659,14 @@ export default function AdminCalendario() {
                         <div className="font-medium">{selectedBooking.customerName} {selectedBooking.customerSurname}</div>
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-stone-500 mt-0.5">
                           <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedBooking.customerPhone}</span>
+                          <button
+                            onClick={() => openWhatsApp(selectedBooking)}
+                            className="flex items-center gap-1 text-green-600 hover:text-green-700 transition-colors"
+                            title="Invia promemoria WhatsApp"
+                          >
+                            <MessageCircle className="w-3 h-3" />
+                            <span className="text-xs font-medium">WhatsApp</span>
+                          </button>
                           {selectedBooking.customerEmail && (<span className="flex items-center gap-1 break-all"><Mail className="w-3 h-3" /> {selectedBooking.customerEmail}</span>)}
                         </div>
                       </>
