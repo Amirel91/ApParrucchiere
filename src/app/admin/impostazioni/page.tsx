@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Save, Store, Clock, Key, Check, AlertCircle, UtensilsCrossed, Users, Plus, Pencil, Trash2, X, ShieldAlert, Plane } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Save, Store, Clock, Key, Check, AlertCircle, UtensilsCrossed, Users, Plus, Pencil, Trash2, X, ShieldAlert, Plane, Download, QrCode } from 'lucide-react'
+import { QRCodeCanvas } from 'qrcode.react'
 
 interface BusinessConfig {
   id: string
@@ -299,6 +300,46 @@ export default function AdminImpostazioni() {
     return `${d}/${m}/${y}`
   }
 
+  // ---- QR Code ----
+  const qrRef = useRef<HTMLCanvasElement>(null)
+
+  const getTenantSlug = useCallback((): string | null => {
+    const match = document.cookie.match(/(?:^|;\s*)tenant_slug=([^;]*)/)
+    return match ? decodeURIComponent(match[1]) : null
+  }, [])
+
+  const getTenantUrl = useCallback((slug: string): string => {
+    const isVercel = window.location.hostname.endsWith('.vercel.app')
+    const base = window.location.origin
+    return isVercel ? `${base}/t/${slug}` : `https://${slug}.intelligenda.it`
+  }, [])
+
+  const [tenantUrl, setTenantUrl] = useState('')
+  useEffect(() => {
+    const slug = getTenantSlug()
+    if (slug) setTenantUrl(getTenantUrl(slug))
+  }, [getTenantSlug, getTenantUrl])
+
+  const handleDownloadQR = useCallback(() => {
+    const canvas = qrRef.current
+    if (!canvas) return
+    // Create a high-res export with padding
+    const padding = 32
+    const size = canvas.width + padding * 2
+    const exportCanvas = document.createElement('canvas')
+    exportCanvas.width = size
+    exportCanvas.height = size
+    const ctx = exportCanvas.getContext('2d')
+    if (!ctx) return
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, size, size)
+    ctx.drawImage(canvas, padding, padding)
+    const link = document.createElement('a')
+    link.download = 'qrcode-intelligenda.png'
+    link.href = exportCanvas.toDataURL('image/png')
+    link.click()
+  }, [])
+
   if (loading) {
     return (<div className="flex items-center justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-stone-300 border-t-stone-900 rounded-full" /></div>)
   }
@@ -342,7 +383,8 @@ export default function AdminImpostazioni() {
 
       {/* Tab: Negozio */}
       {activeTab === 'negozio' && (
-        <div className="bg-white rounded-xl border border-stone-200 p-6">
+        <>
+          <div className="bg-white rounded-xl border border-stone-200 p-6">
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1.5">Nome del Negozio *</label>
@@ -372,6 +414,52 @@ export default function AdminImpostazioni() {
             </div>
           </div>
         </div>
+
+        {/* QR Code per la Vetrina */}
+        <div className="bg-white rounded-xl border border-stone-200 p-6 mt-6">
+          <div className="flex items-center gap-2 mb-1">
+            <QrCode className="w-5 h-5 text-stone-500" />
+            <h2 className="font-semibold text-stone-900">Il tuo QR Code per la Vetrina</h2>
+          </div>
+          <p className="text-stone-500 text-sm mb-6">
+            Mostra questo QR Code in vetrina per permettere ai clienti di prenotare
+            direttamente dal loro smartphone.
+          </p>
+
+          <div className="flex flex-col items-center">
+            <div className="bg-stone-50 rounded-2xl p-6 mb-4 border border-stone-100">
+              {tenantUrl ? (
+                <QRCodeCanvas
+                  ref={qrRef}
+                  value={tenantUrl}
+                  size={200}
+                  level="H"
+                  bgColor="#ffffff"
+                  fgColor="#1c1917"
+                  includeMargin={false}
+                />
+              ) : (
+                <div className="w-[200px] h-[200px] flex items-center justify-center text-stone-400 text-sm">
+                  Caricamento QR Code...
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-stone-400 mb-4 break-all text-center max-w-xs">
+              {tenantUrl || '—'}
+            </p>
+
+            <button
+              onClick={handleDownloadQR}
+              disabled={!tenantUrl}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-stone-900 text-white text-sm font-medium hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              <Download className="w-4 h-4" />
+              Scarica QR Code per la stampa
+            </button>
+          </div>
+        </div>
+        </>
       )}
 
       {/* Tab: Orari */}
